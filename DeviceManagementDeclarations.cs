@@ -6,7 +6,7 @@ using System.Drawing;
 using System.Runtime.InteropServices; 
 using System.Windows.Forms;
 
-namespace taylor_pc_app
+namespace ColorimeterDiagnosticApp
 {
 	internal sealed partial class DeviceManagement
 	{
