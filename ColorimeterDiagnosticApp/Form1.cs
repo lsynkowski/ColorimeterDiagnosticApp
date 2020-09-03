@@ -16,5 +16,21 @@ namespace ColorimeterDiagnosticApp
         {
             InitializeComponent();
         }
+
+        protected override void WndProc(ref Message m)
+        {
+            //always do the base
+            base.WndProc(ref m);
+
+            //Once the colorimeter is connected we don't handle any more messages
+            //unless we want to handle a remove it message
+            //if (!colorimeterConnected && m.Msg == WM_DEVICECHANGE)
+            if (m.Msg == DeviceManagement.WM_DEVICECHANGE)
+            {
+                if (!checkColorimeterConnectionBackgroundWorker.IsBusy)
+                    checkColorimeterConnectionBackgroundWorker.RunWorkerAsync(m);
+
+            }
+        }
     }
 }
