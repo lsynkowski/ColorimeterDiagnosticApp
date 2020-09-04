@@ -61,10 +61,10 @@ namespace ColorimeterDiagnosticApp
 					}
 
 					////  Find out if it's the device we're communicating with.
-					//if (MyDeviceManagement.DeviceNameMatch(m, myColorimeter.ColorimeterPathName))
-					//{
-					//	lstResults.Items.Add("My device attached.");
-					//}
+					if (MyDeviceManagement.DeviceNameMatch(m, colorimeterPathName))
+					{
+						listBox1.Items.Add("My device attached.");
+					}
 				}
 
 				//  If WParam contains DBT_DEVICEREMOVAL, a device has been removed.
@@ -73,24 +73,24 @@ namespace ColorimeterDiagnosticApp
 					listBox1.Items.Add("A device has been removed.");
 
 					//  Find out if it's the device we're communicating with.
-					//if (MyDeviceManagement.DeviceNameMatch(m, myColorimeter.ColorimeterPathName))
-					//{
-					//	lstResults.Items.Add("My device removed.");
+					if (MyDeviceManagement.DeviceNameMatch(m, colorimeterPathName))
+					{
+						listBox1.Items.Add("My device removed.");
 
-					//	//  Set MyDeviceDetected False so on the next data-transfer attempt,
-					//	//  FindTheHid() will be called to look for the device 
-					//	//  and get a new handle.
-					//	myColorimeter.colorimeterDetected = false;
-					//}
+						//  Set MyDeviceDetected False so on the next data-transfer attempt,
+						//  FindTheHid() will be called to look for the device 
+						//  and get a new handle.
+						colorimeterDetected = false;
+					}
 
 
 
 				}
 
 
-					listBox1.Items.Add($"WParam : { m.WParam }   |LParam : { m.LParam }  |Result : { m.Result }  |MHWnd : { m.HWnd }");
-
-            }
+				listBox1.Items.Add($"WParam : { m.WParam }   |LParam : { m.LParam }  |Result : { m.Result }  |MHWnd : { m.HWnd }");
+				listBox1.SelectedIndex = listBox1.Items.Count - 1;
+			}
 
         }
 
