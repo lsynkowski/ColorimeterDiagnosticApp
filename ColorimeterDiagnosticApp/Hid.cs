@@ -144,6 +144,10 @@ namespace ColorimeterDiagnosticApp
         internal HIDD_ATTRIBUTES DeviceAttributes; 
 
         
+        //  For viewing results of API calls in debug.write statements:
+        
+        // internal static Debugging MyDebugging = new Debugging(); 
+        
         ///  <summary>
         ///  For reports the device sends to the host.
         ///  </summary>
@@ -1072,6 +1076,7 @@ namespace ColorimeterDiagnosticApp
             //  Create an error message.
             
             message = "Exception: " + e.Message + "\r\n" + "Module: " + moduleName + "\r\n"  + "Method: " + e.TargetSite.Name; 
+
             
             caption = "Unexpected Exception"; 
             
