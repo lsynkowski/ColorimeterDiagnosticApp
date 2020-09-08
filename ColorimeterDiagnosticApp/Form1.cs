@@ -30,6 +30,7 @@ namespace ColorimeterDiagnosticApp
         private SafeFileHandle writeHandle;
         private byte[] inputBuffer;
         private Boolean newInputData;
+        private string firmwareVersion;
 
 
         private Hid MyHid = new Hid();
@@ -413,212 +414,145 @@ namespace ColorimeterDiagnosticApp
             }
         }
 
+        public Boolean QueryFirmwareVersion()
+        {
+           byte[] outputBuffer = new byte[MyHid.Capabilities.OutputReportByteLength];
+            Boolean retval = false;
 
-		///  <summary>
-		///  Use SetupDi API functions to retrieve the device path name of an
-		///  attached device that belongs to a device interface class.
-		///  </summary>
-		///  
-		///  <param name="myGuid"> an interface class GUID. </param>
-		///  <param name="devicePathName"> a pointer to the device path name 
-		///  of an attached device. </param>
-		///  
-		///  <returns>
-		///   True if a device is found, False if not. 
-		///  </returns>
-		// ALREADY IN DEVICEMANAGEMENT.CS
-		//private Boolean FindDeviceFromGuid(System.Guid myGuid, ref String[] devicePathName)
-		//{
-		//	Int32 bufferSize = 0;
-		//	IntPtr detailDataBuffer = IntPtr.Zero;
-		//	Boolean deviceFound;
-		//	IntPtr deviceInfoSet = new System.IntPtr();
-		//	Boolean lastDevice = false;
-		//	Int32 memberIndex = 0;
-		//	SP_DEVICE_INTERFACE_DATA MyDeviceInterfaceData = new SP_DEVICE_INTERFACE_DATA();
-		//	Boolean success;
+            if (colorimeterDetected)
+            {
+                // Build output packet
+                outputBuffer[0] = 0;
+                outputBuffer[1] = Convert.ToByte(OutCmd.SendFwVers);//the value of the query firmware vers
+                outputBuffer[2] = 0;
+                Write(ref outputBuffer);
 
-		//	try
-		//	{
-		//		// ***
-		//		//  API function
+                // Setup to read response (expecting ACK)
+                if (SetupRead() == true)
+                {
+                    if (WaitForResponse() == InCmd.FirmwareVersion)//FirmwareVersion = 10,
+                    {
+                        firmwareVersion = Encoding.GetEncoding("iso-8859-1").GetString(inputBuffer, 3, inputBuffer[2]);
+                        listBox1.Items.Add($"Firmware version: { firmwareVersion }");
 
-		//		//  summary 
-		//		//  Retrieves a device information set for a specified group of devices.
-		//		//  SetupDiEnumDeviceInterfaces uses the device information set.
+                        retval = true;
+                    }
+                    else
+                    {
+                        retval = false;
+                    }
+                }
+                else
+                {
+                    retval = false;
+                }
+            }
 
-		//		//  parameters 
-		//		//  Interface class GUID.
-		//		//  Null to retrieve information for all device instances.
-		//		//  Optional handle to a top-level window (unused here).
-		//		//  Flags to limit the returned information to currently present devices 
-		//		//  and devices that expose interfaces in the class specified by the GUID.
+            return retval;
+        }
 
-		//		//  Returns
-		//		//  Handle to a device information set for the devices.
-		//		// ***
+        /// <summary>
+        /// Write an output report to the colorimeter
+        /// </summary> 
+        /// 
+        /// <param name="outputBuffer">Reference to byte array containing output data</param>\
+        /// <returns>True if write is successful, false otherwise</returns>
+        private Boolean Write(ref byte[] outputBuffer)
+        {
+            Boolean success = false;
 
-		//		deviceInfoSet = SetupDiGetClassDevs(ref myGuid, IntPtr.Zero, IntPtr.Zero, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+            try
+            {
+                // If colorimeter is connected, write to device
+                if ((colorimeterDetected == true))
+                {
+                    // Check write handle
+                    if (!writeHandle.IsInvalid)
+                    {
+                        if (MyHid.Capabilities.OutputReportByteLength > 0)
+                        {
+                            Hid.OutputReportViaInterruptTransfer outputReport = new Hid.OutputReportViaInterruptTransfer();
+                            success = outputReport.Write(outputBuffer, writeHandle);
 
-		//		deviceFound = false;
-		//		memberIndex = 0;
+                            if (!success)
+                            {
+                                listBox1.Items.Add("Write to colorimeter failed.");
+                            }
+                        }
+                        else
+                        {
+                            listBox1.Items.Add("This HID device doesn't have an Output report.");
+                        }
+                    }
+                    else
+                    {
+                        listBox1.Items.Add("Invalid write handle.");
+                    }
+                }
 
-		//		// The cbSize element of the MyDeviceInterfaceData structure must be set to
-		//		// the structure's size in bytes. 
-		//		// The size is 28 bytes for 32-bit code and 32 bits for 64-bit code.
+                return success;
+            }
+            catch (Exception ex)
+            {
+                listBox1.Items.Add($"Colorimeter.Write() {ex}");
+                throw;
+            }
+        }
 
-		//		MyDeviceInterfaceData.cbSize = Marshal.SizeOf(MyDeviceInterfaceData);
+        ///  <summary>
+        ///  Initiates exchanging reports. 
+        ///  The application sends a report and requests to read a report.
+        ///  </summary>
+        ///  
+        ///  <returns>True if read successful, false otherwise</returns>
+        public Boolean SetupRead()
+        {
+            Boolean success = false;
 
-		//		do
-		//		{
-		//			// Begin with 0 and increment through the device information set until
-		//			// no more devices are available.
+            try
+            {
+                if (colorimeterDetected == true)
+                {
+                    // Check read handle
+                    if (!readHandle.IsInvalid)
+                    {
+                        if (MyHid.Capabilities.InputReportByteLength > 0)
+                        {
+                            Hid.InputReportViaInterruptTransfer myInputReport = new Hid.InputReportViaInterruptTransfer();
+                            myInputReport.Read(hidHandle, readHandle, writeHandle, ref colorimeterDetected, ref inputBuffer, ref success);
+                            InputReportReceived(ref inputBuffer, success);
 
-		//			// ***
-		//			//  API function
+                            // IAsyncResult ar = null;
+                            // Hid.InputReportViaInterruptTransfer myInputReport = new Hid.InputReportViaInterruptTransfer();
+                            // ReadInputReportDelegate MyReadInputReportDelegate = new ReadInputReportDelegate(myInputReport.Read);
 
-		//			//  summary
-		//			//  Retrieves a handle to a SP_DEVICE_INTERFACE_DATA structure for a device.
-		//			//  On return, MyDeviceInterfaceData contains the handle to a
-		//			//  SP_DEVICE_INTERFACE_DATA structure for a detected device.
+                            // ar = MyReadInputReportDelegate.BeginInvoke(hidHandle, readHandle, writeHandle, ref ColorimeterDetected, ref inputBuffer, ref success, new AsyncCallback(InputReportReceived), MyReadInputReportDelegate);
+                        }
+                        else
+                        {
+                            listBox1.Items.Add("This HID device doesn't have an Input report.");
+                        }
+                    }
+                    else
+                    {
+                        listBox1.Items.Add("Invalid read handle.");
+                    }
+                }
+                else
+                {
+                    listBox1.Items.Add("Colorimeter not detected");
+                }
 
-		//			//  parameters
-		//			//  DeviceInfoSet returned by SetupDiGetClassDevs.
-		//			//  Optional SP_DEVINFO_DATA structure that defines a device instance 
-		//			//  that is a member of a device information set.
-		//			//  Device interface GUID.
-		//			//  Index to specify a device in a device information set.
-		//			//  Pointer to a handle to a SP_DEVICE_INTERFACE_DATA structure for a device.
+                return success;
+            }
+            catch (Exception ex)
+            {
+                listBox1.Items.Add($"Colorimeter.SetupRead() {ex}");
+                throw;
+            }
+        }
 
-		//			//  Returns
-		//			//  True on success.
-		//			// ***
-
-		//			success = SetupDiEnumDeviceInterfaces
-		//				(deviceInfoSet,
-		//				IntPtr.Zero,
-		//				ref myGuid,
-		//				memberIndex,
-		//				ref MyDeviceInterfaceData);
-
-		//			// Find out if a device information set was retrieved.
-
-		//			if (!success)
-		//			{
-		//				lastDevice = true;
-
-		//			}
-		//			else
-		//			{
-		//				// A device is present.
-
-		//				// ***
-		//				//  API function: 
-
-		//				//  summary:
-		//				//  Retrieves an SP_DEVICE_INTERFACE_DETAIL_DATA structure
-		//				//  containing information about a device.
-		//				//  To retrieve the information, call this function twice.
-		//				//  The first time returns the size of the structure.
-		//				//  The second time returns a pointer to the data.
-
-		//				//  parameters
-		//				//  DeviceInfoSet returned by SetupDiGetClassDevs
-		//				//  SP_DEVICE_INTERFACE_DATA structure returned by SetupDiEnumDeviceInterfaces
-		//				//  A returned pointer to an SP_DEVICE_INTERFACE_DETAIL_DATA 
-		//				//  Structure to receive information about the specified interface.
-		//				//  The size of the SP_DEVICE_INTERFACE_DETAIL_DATA structure.
-		//				//  Pointer to a variable that will receive the returned required size of the 
-		//				//  SP_DEVICE_INTERFACE_DETAIL_DATA structure.
-		//				//  Returned pointer to an SP_DEVINFO_DATA structure to receive information about the device.
-
-		//				//  Returns
-		//				//  True on success.
-		//				// ***                     
-
-		//				success = SetupDiGetDeviceInterfaceDetail
-		//					(deviceInfoSet,
-		//					ref MyDeviceInterfaceData,
-		//					IntPtr.Zero,
-		//					0,
-		//					ref bufferSize,
-		//					IntPtr.Zero);
-
-		//				// Allocate memory for the SP_DEVICE_INTERFACE_DETAIL_DATA structure using the returned buffer size.
-
-		//				detailDataBuffer = Marshal.AllocHGlobal(bufferSize);
-
-		//				// Store cbSize in the first bytes of the array. The number of bytes varies with 32- and 64-bit systems.
-
-		//				Marshal.WriteInt32(detailDataBuffer, (IntPtr.Size == 4) ? (4 + Marshal.SystemDefaultCharSize) : 8);
-
-		//				// Call SetupDiGetDeviceInterfaceDetail again.
-		//				// This time, pass a pointer to DetailDataBuffer
-		//				// and the returned required buffer size.
-
-		//				success = SetupDiGetDeviceInterfaceDetail
-		//					(deviceInfoSet,
-		//					ref MyDeviceInterfaceData,
-		//					detailDataBuffer,
-		//					bufferSize,
-		//					ref bufferSize,
-		//					IntPtr.Zero);
-
-		//				// Skip over cbsize (4 bytes) to get the address of the devicePathName.
-
-		//				IntPtr pDevicePathName = new IntPtr(detailDataBuffer.ToInt32() + 4);
-
-		//				// Get the String containing the devicePathName.
-
-		//				devicePathName[memberIndex] = Marshal.PtrToStringAuto(pDevicePathName);
-
-
-		//				deviceFound = true;
-		//			}
-		//			memberIndex = memberIndex + 1;
-		//		}
-		//		while (!((lastDevice == true)));
-
-
-
-		//		return deviceFound;
-		//	}
-		//	catch (Exception ex)
-		//	{
-		//		throw;
-		//	}
-		//	finally
-		//	{
-		//		if (detailDataBuffer != IntPtr.Zero)
-		//		{
-		//			// Free the memory allocated previously by AllocHGlobal.
-
-		//			Marshal.FreeHGlobal(detailDataBuffer);
-		//		}
-		//		// ***
-		//		//  API function
-
-		//		//  summary
-		//		//  Frees the memory reserved for the DeviceInfoSet returned by SetupDiGetClassDevs.
-
-		//		//  parameters
-		//		//  DeviceInfoSet returned by SetupDiGetClassDevs.
-
-		//		//  returns
-		//		//  True on success.
-		//		// ***
-
-		//		if (deviceInfoSet != IntPtr.Zero)
-		//		{
-		//			SetupDiDestroyDeviceInfoList(deviceInfoSet);
-		//		}
-		//	}
-		//}
-
-
-
-
-		[StructLayout(LayoutKind.Sequential)]
+        [StructLayout(LayoutKind.Sequential)]
 		private class DEV_BROADCAST_DEVICEINTERFACE
 		{
 			internal Int32 dbcc_size;
@@ -633,5 +567,95 @@ namespace ColorimeterDiagnosticApp
 
 		[DllImport("hid.dll", SetLastError = true)]
 		internal static extern void HidD_GetHidGuid(ref System.Guid HidGuid);
-	}
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            QueryFirmwareVersion();
+        }
+
+        /// <summary>
+        /// Wait for input report from colorimeter.
+        /// </summary>
+        /// 
+        /// <returns>The response from colorimeter (ACK or NAK)</returns>
+        private InCmd WaitForResponse()
+        {
+            // TODO: we need a timeout here
+            while (!newInputData) ;
+
+            // Read response from colorimeter.  Figure out how to pend on input report reception
+            return (InCmd)inputBuffer[1];
+        }
+
+        private void InputReportReceived(ref Byte[] inputReportBuffer, Boolean success)
+        {
+            Int32 count = 0;
+
+            if (success)
+            {
+                for (count = 0; count < inputReportBuffer.Length; count++)
+                {
+                    //  Copy input data to buffer
+                    inputBuffer[count] = inputReportBuffer[count];
+                }
+
+                newInputData = true;
+            }
+            else
+            {
+                listBox1.Items.Add("The attempt to read an Input report has failed");
+            }
+        }
+
+        private enum InCmd : byte
+        {
+            none,
+
+            ACK,
+            NAK,
+
+            BootloaderRunning = 5,
+            MainFwRunning,
+
+            FirmwareVersion = 10,
+            TestFileVersion = 11,
+
+            TestData = 15,
+            ResultsData,
+            DataSendComplete,
+            DataSendFailed,
+        };
+
+
+        // Data packet command bytes
+        public enum OutCmd : byte
+        {
+            none,
+
+            ACK = 1,
+            NAK,
+
+            SendFwVers = 5,
+            SendTestFileVers,
+            SendUserTests,
+            SendTestResults,
+
+            StartFAT = 10,
+
+            QueryFirmwareState = 15,
+            VectorBootLoader,
+
+            FirmwareStart = 20,
+            FirmwareData,
+            FirmwareComplete,
+
+            TaylorTestStart = 30,
+            UserTestStart,
+            TestData,
+            TestComplete,
+
+            DeleteTestResults = 40,
+        };
+
+    }
 }
