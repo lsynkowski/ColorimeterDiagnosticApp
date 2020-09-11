@@ -7,6 +7,12 @@ namespace ColorimeterDiagnosticApp
 {
     public class ColorimeterRequest
     {
-        public string requestInfo;
+        public ColorimeterRequestTypes requestInfo;
+    }
+
+    public enum ColorimeterRequestTypes
+    {
+        Transfer,
+        FirmwareVersion,
     }
 }
