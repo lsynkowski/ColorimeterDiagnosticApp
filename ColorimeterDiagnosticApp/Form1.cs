@@ -426,7 +426,7 @@ namespace ColorimeterDiagnosticApp
                 throw;
             }
         }
-        public enum QueryType
+        private enum QueryType
         {
             FirmwareVersion,
             TestFileVersion,
@@ -441,55 +441,53 @@ namespace ColorimeterDiagnosticApp
             MainFwRunning,
         };
 
-        public Boolean Query(QueryType queryType, ColorimeterResponse response)
+        private Boolean Query(QueryType queryType, ColorimeterResponse response)
         {
             byte[] outputBuffer = new byte[MyHid.Capabilities.OutputReportByteLength];
             Boolean retval = false;
 
-            if (colorimeterDetected)
+            // Build output packet
+            outputBuffer[0] = 0;
+            // outputBuffer[1] different for each QueryType
+            switch (queryType)
             {
-                // Build output packet
-                outputBuffer[0] = 0;
-                // outputBuffer[1] different for each QueryType
+                case QueryType.FirmwareVersion:
+                    outputBuffer[1] = Convert.ToByte(OutCmd.SendFwVers);//the value of the query firmware vers
+                    break;
+                case QueryType.TestFileVersion:
+                    outputBuffer[1] = Convert.ToByte(OutCmd.SendTestFileVers);//the value of the query test file vers
+                    break;
+                case QueryType.DeviceState:
+                    outputBuffer[1] = Convert.ToByte(OutCmd.QueryFirmwareState);//the value of the query firmware state
+                    break;
+            }
+            outputBuffer[2] = 0;
+            Write(ref outputBuffer, response);
+            // Setup to read response
+            if (SetupRead(response) == true)
+            {
                 switch (queryType)
                 {
                     case QueryType.FirmwareVersion:
-                        outputBuffer[1] = Convert.ToByte(OutCmd.SendFwVers);//the value of the query firmware vers
+                        retval = QueryFirmwareVersion(response);
                         break;
                     case QueryType.TestFileVersion:
-                        outputBuffer[1] = Convert.ToByte(OutCmd.SendTestFileVers);//the value of the query test file vers
+                        retval = QueryTestFileVersion();
                         break;
                     case QueryType.DeviceState:
-                        outputBuffer[1] = Convert.ToByte(OutCmd.QueryFirmwareState);//the value of the query firmware state
+                        retval = QueryDeviceState();
                         break;
                 }
-                outputBuffer[2] = 0;
-                Write(ref outputBuffer, response);
-                // Setup to read response
-                if (SetupRead(response) == true)
-                {
-                    switch (queryType)
-                    {
-                        case QueryType.FirmwareVersion:
-                            retval = QueryFirmwareVersion(response);
-                            break;
-                        case QueryType.TestFileVersion:
-                            retval = QueryTestFileVersion();
-                            break;
-                        case QueryType.DeviceState:
-                            retval = QueryDeviceState();
-                            break;
-                    }
-                }
-                else
-                {
-                    retval = false;
-                }
             }
+            else
+            {
+                retval = false;
+            }
+
             return retval;
         }
 
-        public Boolean QueryFirmwareVersion(ColorimeterResponse response)
+        private Boolean QueryFirmwareVersion(ColorimeterResponse response)
         {
             //(expecting ACK) from response
             if (WaitForResponse() == InCmd.FirmwareVersion)//FirmwareVersion = 10,
@@ -502,7 +500,7 @@ namespace ColorimeterDiagnosticApp
             return false;
         }
 
-        public Boolean QueryTestFileVersion()
+        private Boolean QueryTestFileVersion()
         {
             //(expecting ACK) from response
             if (WaitForResponse() == InCmd.TestFileVersion)
@@ -513,7 +511,7 @@ namespace ColorimeterDiagnosticApp
             return false;
         }
 
-        public Boolean QueryDeviceState()
+        private Boolean QueryDeviceState()
         {
             // Retrieve response and set device state flag appropriately
             switch (WaitForResponse())
@@ -741,7 +739,7 @@ namespace ColorimeterDiagnosticApp
             {
                 var request = new ColorimeterRequest()
                 {
-                    requestInfo = ColorimeterRequestTypes.FirmwareVersion
+                    colorimeterRequestType = ColorimeterRequestTypes.FirmwareVersion
                 };
 
                 if (!checkColorimeterConnectionBackgroundWorker.IsBusy)
@@ -760,7 +758,7 @@ namespace ColorimeterDiagnosticApp
                 //A new ColorimeterRequest Object is Created and populated with everything we need
                 var request = new ColorimeterRequest()
                 {
-                    requestInfo = ColorimeterRequestTypes.Transfer
+                    colorimeterRequestType = ColorimeterRequestTypes.Transfer
                 };
 
 
@@ -776,14 +774,13 @@ namespace ColorimeterDiagnosticApp
         private void checkColorimeterConnectionBackgroundWorker_DoWork(object sender, DoWorkEventArgs e)
         {
             //this is the thread where we do our actual longrunning connection work
-            System.Threading.Thread.Sleep(5000);
 
             //here is how you get the arguments (incoming object)
             var incomingRequest = (ColorimeterRequest)e.Argument;
 
             var outgoingResponse = new ColorimeterResponse();
 
-            switch(incomingRequest.requestInfo)
+            switch(incomingRequest.colorimeterRequestType)
             {
                 case ColorimeterRequestTypes.Transfer:
                     outgoingResponse.responseInfo.Add("you requested a transfer");

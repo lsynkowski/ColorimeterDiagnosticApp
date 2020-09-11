@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 
@@ -7,7 +8,12 @@ namespace ColorimeterDiagnosticApp
 {
     public class ColorimeterRequest
     {
-        public ColorimeterRequestTypes requestInfo;
+        public ColorimeterRequestTypes colorimeterRequestType;
+
+
+        public string taylorTestFile;
+
+        //File testFile;
     }
 
     public enum ColorimeterRequestTypes
