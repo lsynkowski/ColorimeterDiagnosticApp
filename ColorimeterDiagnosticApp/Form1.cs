@@ -5,8 +5,10 @@ using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -37,9 +39,15 @@ namespace ColorimeterDiagnosticApp
 		private DeviceManagement MyDeviceManagement = new DeviceManagement();
 
 
-		public Form1()
+        private BackgroundWorker checkColorimeterConnectionBackgroundWorker;
+
+        public Form1()
         {
             InitializeComponent();
+
+            checkColorimeterConnectionBackgroundWorker = new BackgroundWorker();
+            checkColorimeterConnectionBackgroundWorker.DoWork += new DoWorkEventHandler(checkColorimeterConnectionBackgroundWorker_DoWork);
+            checkColorimeterConnectionBackgroundWorker.RunWorkerCompleted += new RunWorkerCompletedEventHandler(checkColorimeterConnectionBackgroundWorker_RunWorkerCompleted);
         }
 
         protected override void WndProc(ref Message m)
@@ -451,6 +459,7 @@ namespace ColorimeterDiagnosticApp
             return retval;
         }
 
+
         /// <summary>
         /// Write an output report to the colorimeter
         /// </summary> 
@@ -656,6 +665,60 @@ namespace ColorimeterDiagnosticApp
 
             DeleteTestResults = 40,
         };
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            if (colorimeterDetected)
+            {
+                //A new ColorimeterRequest Object is Created and populated with everything we need
+                var request = new ColorimeterRequest()
+                {
+                    requestInfo = "transfer"
+                };
+
+
+                if (!checkColorimeterConnectionBackgroundWorker.IsBusy)
+                {
+                    checkColorimeterConnectionBackgroundWorker.RunWorkerAsync(request);
+                }
+
+            }
+        }
+
+
+        private void checkColorimeterConnectionBackgroundWorker_DoWork(object sender, DoWorkEventArgs e)
+        {
+            //this is the thread where we do our actual longrunning connection work
+            System.Threading.Thread.Sleep(5000);
+
+            //here is how you get the arguments (incoming object)
+            var incomingRequest = (ColorimeterRequest)e.Argument;
+
+            var outgoingResponse = new ColorimeterResponse();
+
+            if (incomingRequest.requestInfo.Equals("transfer"))
+            {
+                outgoingResponse.responseInfo = "you requested a transfer";
+            }
+            else
+            {
+                outgoingResponse.responseInfo = "you requested something else";
+            }     
+            
+            //assign that variable to e.Result
+            e.Result = outgoingResponse;
+
+
+
+        }
+
+        private void checkColorimeterConnectionBackgroundWorker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+        {
+
+            var response = (ColorimeterResponse)e.Result;
+            listBox1.Items.Add($"The results of the transfer: {response.responseInfo}");
+            listBox1.SelectedIndex = listBox1.Items.Count - 1;
+        }
 
     }
 }
