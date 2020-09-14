@@ -474,7 +474,7 @@ namespace ColorimeterDiagnosticApp
                             retval = QueryFirmwareVersion(response);
                             break;
                         case QueryType.TestFileVersion:
-                            retval = QueryTestFileVersion();
+                            retval = QueryTestFileVersion(response);
                             break;
                         case QueryType.DeviceState:
                             retval = QueryDeviceState();
@@ -496,18 +496,21 @@ namespace ColorimeterDiagnosticApp
             {
                 firmwareVersion = Encoding.GetEncoding("iso-8859-1").GetString(inputBuffer, 3, inputBuffer[2]);
                 //listBox1.Items.Add($"Firmware version: { firmwareVersion }");
-                response.responseInfo.Add( $"Firmware version: { firmwareVersion }");
+                response.responseInfo.Add($"Firmware version: { firmwareVersion }");
+                response.firmwareVersion = firmwareVersion;
                 return true;
             }
             return false;
         }
 
-        public Boolean QueryTestFileVersion()
+        public Boolean QueryTestFileVersion(ColorimeterResponse response)
         {
             //(expecting ACK) from response
             if (WaitForResponse() == InCmd.TestFileVersion)
             {
                 testFileVersion = Encoding.GetEncoding("iso-8859-1").GetString(inputBuffer, 3, inputBuffer[2]);
+                response.responseInfo.Add($"Test File version: { testFileVersion }");
+                response.testFileVersion = testFileVersion;
                 return true;
             }
             return false;
@@ -772,6 +775,20 @@ namespace ColorimeterDiagnosticApp
             }
         }
 
+        private void button3_Click(object sender, EventArgs e)
+        {
+            if (colorimeterDetected)
+            {
+                var request = new ColorimeterRequest()
+                {
+                    requestInfo = ColorimeterRequestTypes.TestFileVersion
+                };
+                if (!checkColorimeterConnectionBackgroundWorker.IsBusy)
+                {
+                    checkColorimeterConnectionBackgroundWorker.RunWorkerAsync(request);
+                }
+            }
+        }
 
         private void checkColorimeterConnectionBackgroundWorker_DoWork(object sender, DoWorkEventArgs e)
         {
@@ -783,7 +800,7 @@ namespace ColorimeterDiagnosticApp
 
             var outgoingResponse = new ColorimeterResponse();
 
-            switch(incomingRequest.requestInfo)
+            switch (incomingRequest.requestInfo)
             {
                 case ColorimeterRequestTypes.Transfer:
                     outgoingResponse.responseInfo.Add("you requested a transfer");
@@ -791,6 +808,10 @@ namespace ColorimeterDiagnosticApp
                 case ColorimeterRequestTypes.FirmwareVersion:
                     outgoingResponse.responseInfo.Add("you requested the firmware version");
                     Query(QueryType.FirmwareVersion, outgoingResponse);
+                    break;
+                case ColorimeterRequestTypes.TestFileVersion:
+                    outgoingResponse.responseInfo.Add("you requested the test file version");
+                    Query(QueryType.TestFileVersion, outgoingResponse);
                     break;
                 default:
                     outgoingResponse.responseInfo.Add("you requested something else");
@@ -808,12 +829,23 @@ namespace ColorimeterDiagnosticApp
         {
 
             var response = (ColorimeterResponse)e.Result;
+
+            if (!response.firmwareVersion.Equals(""))
+            {
+                textBox1.Text = response.firmwareVersion;
+            }
+
+            if (!response.testFileVersion.Equals(""))
+            {
+                textBox2.Text = response.testFileVersion;
+            }
+
             foreach (string item in response.responseInfo)
             {
                 listBox1.Items.Add($"{item}");
                 listBox1.SelectedIndex = listBox1.Items.Count - 1;
             }
-        }
 
+        }
     }
 }
