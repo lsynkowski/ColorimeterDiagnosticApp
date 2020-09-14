@@ -426,7 +426,7 @@ namespace ColorimeterDiagnosticApp
                 throw;
             }
         }
-        private enum QueryType
+        public enum QueryType
         {
             FirmwareVersion,
             TestFileVersion,
@@ -441,77 +441,82 @@ namespace ColorimeterDiagnosticApp
             MainFwRunning,
         };
 
-        private Boolean Query(QueryType queryType, ColorimeterResponse response)
+        public Boolean Query(QueryType queryType, ColorimeterResponse response)
         {
             byte[] outputBuffer = new byte[MyHid.Capabilities.OutputReportByteLength];
             Boolean retval = false;
 
-            // Build output packet
-            outputBuffer[0] = 0;
-            // outputBuffer[1] different for each QueryType
-            switch (queryType)
+            if (colorimeterDetected)
             {
-                case QueryType.FirmwareVersion:
-                    outputBuffer[1] = Convert.ToByte(OutCmd.SendFwVers);//the value of the query firmware vers
-                    break;
-                case QueryType.TestFileVersion:
-                    outputBuffer[1] = Convert.ToByte(OutCmd.SendTestFileVers);//the value of the query test file vers
-                    break;
-                case QueryType.DeviceState:
-                    outputBuffer[1] = Convert.ToByte(OutCmd.QueryFirmwareState);//the value of the query firmware state
-                    break;
-            }
-            outputBuffer[2] = 0;
-            Write(ref outputBuffer, response);
-            // Setup to read response
-            if (SetupRead(response) == true)
-            {
+                // Build output packet
+                outputBuffer[0] = 0;
+                // outputBuffer[1] different for each QueryType
                 switch (queryType)
                 {
                     case QueryType.FirmwareVersion:
-                        retval = QueryFirmwareVersion(response);
+                        outputBuffer[1] = Convert.ToByte(OutCmd.SendFwVers);//the value of the query firmware vers
                         break;
                     case QueryType.TestFileVersion:
-                        retval = QueryTestFileVersion();
+                        outputBuffer[1] = Convert.ToByte(OutCmd.SendTestFileVers);//the value of the query test file vers
                         break;
                     case QueryType.DeviceState:
-                        retval = QueryDeviceState();
+                        outputBuffer[1] = Convert.ToByte(OutCmd.QueryFirmwareState);//the value of the query firmware state
                         break;
                 }
+                outputBuffer[2] = 0;
+                Write(ref outputBuffer, response);
+                // Setup to read response
+                if (SetupRead(response) == true)
+                {
+                    switch (queryType)
+                    {
+                        case QueryType.FirmwareVersion:
+                            retval = QueryFirmwareVersion(response);
+                            break;
+                        case QueryType.TestFileVersion:
+                            retval = QueryTestFileVersion(response);
+                            break;
+                        case QueryType.DeviceState:
+                            retval = QueryDeviceState();
+                            break;
+                    }
+                }
+                else
+                {
+                    retval = false;
+                }
             }
-            else
-            {
-                retval = false;
-            }
-
             return retval;
         }
 
-        private Boolean QueryFirmwareVersion(ColorimeterResponse response)
+        public Boolean QueryFirmwareVersion(ColorimeterResponse response)
         {
             //(expecting ACK) from response
             if (WaitForResponse() == InCmd.FirmwareVersion)//FirmwareVersion = 10,
             {
                 firmwareVersion = Encoding.GetEncoding("iso-8859-1").GetString(inputBuffer, 3, inputBuffer[2]);
                 //listBox1.Items.Add($"Firmware version: { firmwareVersion }");
-                response.responseInfo.Add( $"Firmware version: { firmwareVersion }");
+                response.responseInfo.Add($"Firmware version: { firmwareVersion }");
+                response.firmwareVersion = firmwareVersion;
                 return true;
             }
             return false;
         }
 
-        private Boolean QueryTestFileVersion()
+        public Boolean QueryTestFileVersion(ColorimeterResponse response)
         {
             //(expecting ACK) from response
             if (WaitForResponse() == InCmd.TestFileVersion)
             {
                 testFileVersion = Encoding.GetEncoding("iso-8859-1").GetString(inputBuffer, 3, inputBuffer[2]);
+                response.responseInfo.Add($"Test File version: { testFileVersion }");
+                response.testFileVersion = testFileVersion;
                 return true;
             }
             return false;
         }
 
-        private Boolean QueryDeviceState()
+        public Boolean QueryDeviceState()
         {
             // Retrieve response and set device state flag appropriately
             switch (WaitForResponse())
@@ -739,7 +744,7 @@ namespace ColorimeterDiagnosticApp
             {
                 var request = new ColorimeterRequest()
                 {
-                    colorimeterRequestType = ColorimeterRequestTypes.FirmwareVersion
+                    requestInfo = ColorimeterRequestTypes.FirmwareVersion
                 };
 
                 if (!checkColorimeterConnectionBackgroundWorker.IsBusy)
@@ -758,7 +763,7 @@ namespace ColorimeterDiagnosticApp
                 //A new ColorimeterRequest Object is Created and populated with everything we need
                 var request = new ColorimeterRequest()
                 {
-                    colorimeterRequestType = ColorimeterRequestTypes.Transfer
+                    requestInfo = ColorimeterRequestTypes.Transfer
                 };
 
 
@@ -770,17 +775,32 @@ namespace ColorimeterDiagnosticApp
             }
         }
 
+        private void button3_Click(object sender, EventArgs e)
+        {
+            if (colorimeterDetected)
+            {
+                var request = new ColorimeterRequest()
+                {
+                    requestInfo = ColorimeterRequestTypes.TestFileVersion
+                };
+                if (!checkColorimeterConnectionBackgroundWorker.IsBusy)
+                {
+                    checkColorimeterConnectionBackgroundWorker.RunWorkerAsync(request);
+                }
+            }
+        }
 
         private void checkColorimeterConnectionBackgroundWorker_DoWork(object sender, DoWorkEventArgs e)
         {
             //this is the thread where we do our actual longrunning connection work
+            System.Threading.Thread.Sleep(5000);
 
             //here is how you get the arguments (incoming object)
             var incomingRequest = (ColorimeterRequest)e.Argument;
 
             var outgoingResponse = new ColorimeterResponse();
 
-            switch(incomingRequest.colorimeterRequestType)
+            switch (incomingRequest.requestInfo)
             {
                 case ColorimeterRequestTypes.Transfer:
                     outgoingResponse.responseInfo.Add("you requested a transfer");
@@ -788,6 +808,10 @@ namespace ColorimeterDiagnosticApp
                 case ColorimeterRequestTypes.FirmwareVersion:
                     outgoingResponse.responseInfo.Add("you requested the firmware version");
                     Query(QueryType.FirmwareVersion, outgoingResponse);
+                    break;
+                case ColorimeterRequestTypes.TestFileVersion:
+                    outgoingResponse.responseInfo.Add("you requested the test file version");
+                    Query(QueryType.TestFileVersion, outgoingResponse);
                     break;
                 default:
                     outgoingResponse.responseInfo.Add("you requested something else");
@@ -805,12 +829,23 @@ namespace ColorimeterDiagnosticApp
         {
 
             var response = (ColorimeterResponse)e.Result;
+
+            if (!response.firmwareVersion.Equals(""))
+            {
+                textBox1.Text = response.firmwareVersion;
+            }
+
+            if (!response.testFileVersion.Equals(""))
+            {
+                textBox2.Text = response.testFileVersion;
+            }
+
             foreach (string item in response.responseInfo)
             {
                 listBox1.Items.Add($"{item}");
                 listBox1.SelectedIndex = listBox1.Items.Count - 1;
             }
-        }
 
+        }
     }
 }
