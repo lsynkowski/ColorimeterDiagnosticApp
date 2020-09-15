@@ -8,12 +8,21 @@ namespace ColorimeterDiagnosticApp
 {
     public class ColorimeterRequest
     {
-        public ColorimeterRequestType colorimeterRequestType;
 
+        public ColorimeterRequestTypes requestInfo;
+        public Boolean transferRequest;
+        public Boolean testFileVersionRequest;
+        public Boolean firmwareVersionRequest;
+        public Boolean deviceStateRequest;
 
-        public string taylorTestFile;
+        public ColorimeterRequest()
+        {
+            transferRequest = false;
+            testFileVersionRequest = false;
+            firmwareVersionRequest = false;
+            deviceStateRequest = false;
+        }
 
-        //File testFile;
     }
 
     public enum ColorimeterRequestType

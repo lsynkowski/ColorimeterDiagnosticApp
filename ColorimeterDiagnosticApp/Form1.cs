@@ -37,6 +37,7 @@ namespace ColorimeterDiagnosticApp
         private DeviceManagement MyDeviceManagement = new DeviceManagement();
 
         private BackgroundWorker checkColorimeterConnectionBackgroundWorker;
+        private BackgroundWorker checkColorimeterDeviceStateBackgroundWorker;
 
         public Form1()
         {
@@ -45,6 +46,10 @@ namespace ColorimeterDiagnosticApp
             checkColorimeterConnectionBackgroundWorker = new BackgroundWorker();
             checkColorimeterConnectionBackgroundWorker.DoWork += new DoWorkEventHandler(checkColorimeterConnectionBackgroundWorker_DoWork);
             checkColorimeterConnectionBackgroundWorker.RunWorkerCompleted += new RunWorkerCompletedEventHandler(checkColorimeterConnectionBackgroundWorker_RunWorkerCompleted);
+
+            checkColorimeterDeviceStateBackgroundWorker = new BackgroundWorker();
+            checkColorimeterDeviceStateBackgroundWorker.DoWork += new DoWorkEventHandler(checkColorimeterDeviceStateBackgroundWorker_DoWork);
+            checkColorimeterDeviceStateBackgroundWorker.RunWorkerCompleted += new RunWorkerCompletedEventHandler(checkColorimeterDeviceStateBackgroundWorker_RunWorkerCompleted);
         }
 
         protected override void WndProc(ref Message m)
@@ -380,26 +385,18 @@ namespace ColorimeterDiagnosticApp
                             //    // todo: might want to check for DeviceState.Unknown also, that would be a problem
                             //}
 
-                            //if (deviceState == DeviceStates.MainFwRunning)
-                            //{
-                            //    if (QueryFirmwareVersion())
-                            //    {
-                            //        firmwareVersionTextBox.Text = firmwareVersion;
-                            //    }
-                            //    else
-                            //    {
-                            //        firmwareVersionTextBox.Text = "Failed";
-                            //    }
 
-                            //    if (QueryTestFileVersion())
-                            //    {
-                            //        testFileVersionTextBox.Text = testFileVersion;
-                            //    }
-                            //    else
-                            //    {
-                            //        testFileVersionTextBox.Text = "Failed";
-                            //    }
-                            //}
+                            // Start checkColorimeterDeviceStateBackgroundWorker
+                            // When the Background Worker completes, a different backgroundworker
+                            // is called to get the firmware and test file versions
+                            var request = new ColorimeterRequest()
+                            {
+                                deviceStateRequest = true
+                            };
+                            if (!checkColorimeterDeviceStateBackgroundWorker.IsBusy)
+                            {
+                                checkColorimeterDeviceStateBackgroundWorker.RunWorkerAsync(request);
+                            }
                         }
                     }
                 }
@@ -468,7 +465,7 @@ namespace ColorimeterDiagnosticApp
                             retval = QueryTestFileVersion(response);
                             break;
                         case QueryType.DeviceState:
-                            retval = QueryDeviceState();
+                            retval = QueryDeviceState(response);
                             break;
                     }
                 }
@@ -507,7 +504,7 @@ namespace ColorimeterDiagnosticApp
             return false;
         }
 
-        public Boolean QueryDeviceState()
+        public Boolean QueryDeviceState(ColorimeterResponse response)
         {
             // Retrieve response and set device state flag appropriately
             switch (WaitForResponse())
@@ -524,6 +521,7 @@ namespace ColorimeterDiagnosticApp
                     deviceState = DeviceStates.Unknown;
                     break;
             }
+            response.responseInfo.Add($"Device State: { deviceState }");
             return true;
         }
 
@@ -862,13 +860,16 @@ namespace ColorimeterDiagnosticApp
 
                 switch (((Button)sender).Name)
                 {
+
+                    firmwareVersionRequest = true
+                };
+
                     case "GetUserTestsFileButton":
                         request.colorimeterRequestType = ColorimeterRequestType.GetUserTestsFile;
                         break;
                     default:
                         break;
                 }
-
 
                 if (!checkColorimeterConnectionBackgroundWorker.IsBusy)
                 {
@@ -900,7 +901,11 @@ namespace ColorimeterDiagnosticApp
             {
                 var request = new ColorimeterRequest()
                 {
+
+                    transferRequest = true
+
                     colorimeterRequestType = ColorimeterRequestType.FirmwareVersion
+
                 };
 
                 if (!checkColorimeterConnectionBackgroundWorker.IsBusy)
@@ -918,7 +923,11 @@ namespace ColorimeterDiagnosticApp
             {
                 var request = new ColorimeterRequest()
                 {
+
+                    testFileVersionRequest = true
+
                     colorimeterRequestType = ColorimeterRequestType.TestFileVersion
+
                 };
                 if (!checkColorimeterConnectionBackgroundWorker.IsBusy)
                 {
@@ -930,6 +939,9 @@ namespace ColorimeterDiagnosticApp
 
         private void checkColorimeterConnectionBackgroundWorker_DoWork(object sender, DoWorkEventArgs e)
         {
+
+            //this is the thread where we do our actual longrunning connection work
+
 
             //here is how you get the arguments (incoming object)
             var incomingRequest = (ColorimeterRequest)e.Argument;
@@ -956,13 +968,13 @@ namespace ColorimeterDiagnosticApp
                 default:
                     outgoingResponse.responseInfo.Add("you requested something else");
                     break;
+
             }
 
             //assign that variable to e.Result
             e.Result = outgoingResponse;
 
         }
-
         private void checkColorimeterConnectionBackgroundWorker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
 
@@ -984,6 +996,44 @@ namespace ColorimeterDiagnosticApp
                 listBox1.SelectedIndex = listBox1.Items.Count - 1;
             }
 
+        }
+
+        private void checkColorimeterDeviceStateBackgroundWorker_DoWork(object sender, DoWorkEventArgs e)
+        {
+            var incomingRequest = (ColorimeterRequest)e.Argument;
+
+            var outgoingResponse = new ColorimeterResponse();
+
+            if (incomingRequest.deviceStateRequest)
+            {
+                outgoingResponse.responseInfo.Add("you requested the device state");
+                Query(QueryType.DeviceState, outgoingResponse);
+            }
+
+            e.Result = outgoingResponse;
+        }
+
+        private void checkColorimeterDeviceStateBackgroundWorker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+        {
+            var response = (ColorimeterResponse)e.Result;
+            foreach (string item in response.responseInfo)
+            {
+                listBox1.Items.Add($"{item}");
+                listBox1.SelectedIndex = listBox1.Items.Count - 1;
+            }
+
+            if (colorimeterDetected && deviceState == DeviceStates.MainFwRunning)
+            {
+                var request = new ColorimeterRequest()
+                {
+                    firmwareVersionRequest = true,
+                    testFileVersionRequest = true
+                };
+                if (!checkColorimeterConnectionBackgroundWorker.IsBusy)
+                {
+                    checkColorimeterConnectionBackgroundWorker.RunWorkerAsync(request);
+                }
+            }
         }
     }
 }
