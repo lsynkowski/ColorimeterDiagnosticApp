@@ -31,6 +31,7 @@ namespace ColorimeterDiagnosticApp
         Transfer,
         FirmwareVersion,
         TestFileVersion,
+        DeviceState,
         GetUserTestsFile
     }
 }

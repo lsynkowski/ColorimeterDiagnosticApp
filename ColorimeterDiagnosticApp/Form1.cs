@@ -902,6 +902,17 @@ namespace ColorimeterDiagnosticApp
             var incomingRequest = (ColorimeterRequest)e.Argument;
 
             var outgoingResponse = new ColorimeterResponse();
+            // refactor ColorimeterRequest to use ColorimeterRequestType instead of multiple Boolean variables for request type
+            if (incomingRequest.firmwareVersionRequest)
+            {
+                outgoingResponse.responseInfo.Add("you requested the firmware version");
+                Query(QueryType.FirmwareVersion, outgoingResponse);
+            }
+            if (incomingRequest.testFileVersionRequest)
+            {
+                outgoingResponse.responseInfo.Add("you requested the test file version");
+                Query(QueryType.TestFileVersion, outgoingResponse);
+            }
 
             switch (incomingRequest.colorimeterRequestType)
             {
