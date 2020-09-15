@@ -1,16 +1,9 @@
 ﻿using Microsoft.Win32.SafeHandles;
 using System;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.Data;
-using System.Drawing;
-using System.Linq;
-using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Runtime.Remoting.Messaging;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
+using System.IO;
 using System.Windows.Forms;
 
 namespace ColorimeterDiagnosticApp
@@ -39,10 +32,9 @@ namespace ColorimeterDiagnosticApp
         private DeviceStates deviceState;
 
 
-
+        //
         private Hid MyHid = new Hid();
         private DeviceManagement MyDeviceManagement = new DeviceManagement();
-
 
         private BackgroundWorker checkColorimeterConnectionBackgroundWorker;
         private BackgroundWorker checkColorimeterDeviceStateBackgroundWorker;
@@ -115,7 +107,6 @@ namespace ColorimeterDiagnosticApp
 
         private void Form1_Load(object sender, EventArgs e)
         {
-
 
             Guid hidGuid = Guid.Empty;
             HidD_GetHidGuid(ref hidGuid);
@@ -686,6 +677,130 @@ namespace ColorimeterDiagnosticApp
             }
         }
 
+
+        public void ReceiveTestFile(string receivedTestFileName, ColorimeterResponse colorimeterResponse)
+        {
+            bool done;
+            byte checksum = 0;
+            BinaryWriter outputFileWriter = null;
+
+            try
+            {
+                // If the output file exists, delete it
+                if (File.Exists(receivedTestFileName))
+                {
+                    File.Delete(receivedTestFileName);
+                }
+
+                // Open the output file and create an BinaryWriter object so we can write to it
+                outputFileWriter = new BinaryWriter(File.Open(receivedTestFileName, FileMode.OpenOrCreate, FileAccess.Write));
+
+                // Request the user test file from the colorimeter
+                StartSendingUserTestFile(colorimeterResponse);
+
+                // Wait for ACK
+                SetupRead(colorimeterResponse);
+                if (WaitForResponse() == InCmd.ACK)
+                {
+                    // Loop, receiving test data until colorimeter tells us we're done
+                    done = false;
+                    while (!done)
+                    {
+                        // ACK received, now wait for test data
+                        SetupRead(colorimeterResponse);
+                        if (WaitForInputReport())
+                        {
+                            // Verify that the data we received is user test data
+                            if (inputBuffer[1] == (byte)InCmd.TestData)
+                            {
+                                // Update our checksum
+                                for (int i = 0; i < inputBuffer[2]; i++)
+                                {
+                                    checksum ^= inputBuffer[3 + i];
+                                }
+
+                                // If input report received successfully, write data
+                                outputFileWriter.Write(inputBuffer, 3, inputBuffer[2]);
+                                SendACK(colorimeterResponse);
+                            }
+                            else if (inputBuffer[1] == (byte)InCmd.DataSendComplete)
+                            {
+                                done = true;
+                                if (checksum == inputBuffer[3])
+                                {
+                                    SendACK(colorimeterResponse);
+                                }
+                                else
+                                {
+                                    SendNAK(colorimeterResponse);
+                                    colorimeterResponse.responseInfo.Add("Checksums do not match! Checksum Error");
+                                }
+                            }
+                            else
+                            {
+                                SendNAK(colorimeterResponse);
+                                done = true;
+                                colorimeterResponse.responseInfo.Add("Test file transfer failed Error");
+                            }
+                        }
+                        else
+                        {
+                            done = true;
+                            colorimeterResponse.responseInfo.Add("Test file transfer failed. Error");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                colorimeterResponse.responseInfo.Add($"{ex.Message} Exception occurred!");
+            }
+
+            finally
+            {
+                if (outputFileWriter != null)
+                    outputFileWriter.Close();
+            }
+        }
+
+        private void StartSendingUserTestFile(ColorimeterResponse colorimeterResponse)
+        {
+            byte[] outputBuffer = new byte[MyHid.Capabilities.OutputReportByteLength];
+
+            outputBuffer[0] = 0;
+            outputBuffer[1] = Convert.ToByte(OutCmd.SendUserTests);
+            outputBuffer[2] = 0;
+            Write(ref outputBuffer, colorimeterResponse);
+
+        }
+
+        public void SendACK(ColorimeterResponse colorimeterResponse)
+        {
+            byte[] outputBuffer = new byte[MyHid.Capabilities.OutputReportByteLength];
+
+                outputBuffer[0] = 0;
+                outputBuffer[1] = Convert.ToByte(OutCmd.ACK);
+                outputBuffer[2] = 0;
+                Write(ref outputBuffer, colorimeterResponse);
+        }
+
+        public void SendNAK(ColorimeterResponse colorimeterResponse)
+        {
+            byte[] outputBuffer = new byte[MyHid.Capabilities.OutputReportByteLength];
+
+            outputBuffer[0] = 0;
+            outputBuffer[1] = Convert.ToByte(OutCmd.NAK);
+            outputBuffer[2] = 0;
+            Write(ref outputBuffer, colorimeterResponse);
+        }
+
+        private bool WaitForInputReport()
+        {
+            while (!newInputData) ;
+
+            return true;
+        }
+
         private enum InCmd : byte
         {
             none,
@@ -736,34 +851,62 @@ namespace ColorimeterDiagnosticApp
             DeleteTestResults = 40,
         };
 
+
+        private void buttonClickHandler(object sender, EventArgs e)
+        {
+            if (colorimeterDetected)
+            {
+                var request = new ColorimeterRequest();
+
+                switch (((Button)sender).Name)
+                {
+
+                    firmwareVersionRequest = true
+                };
+
+                    case "GetUserTestsFileButton":
+                        request.colorimeterRequestType = ColorimeterRequestType.GetUserTestsFile;
+                        break;
+                    default:
+                        break;
+                }
+
+                if (!checkColorimeterConnectionBackgroundWorker.IsBusy)
+                {
+                    checkColorimeterConnectionBackgroundWorker.RunWorkerAsync(request);
+                }
+
+            }
+        }
+
+        private void browseUserTestSaveButton_Click(object sender, EventArgs e)
+        {
+            // Create an Open File dialog instance
+            SaveFileDialog saveFile = new SaveFileDialog();
+
+            // Configure Open File dialog box
+            saveFile.Title = "Save Output File...";
+            saveFile.Filter = "Test Configuration Files (*.tcf)|*.tcf|All Files|*.*";
+
+            // If user click OK, populate filename text box with the selection
+            if (saveFile.ShowDialog() == DialogResult.OK)
+            {
+                saveUserTestPathTextBox.Text = saveFile.FileName;
+            }
+        }
+
         private void button1_Click(object sender, EventArgs e)
         {
             if (colorimeterDetected)
             {
                 var request = new ColorimeterRequest()
                 {
-                    firmwareVersionRequest = true
-                };
 
-                if (!checkColorimeterConnectionBackgroundWorker.IsBusy)
-                {
-                    checkColorimeterConnectionBackgroundWorker.RunWorkerAsync(request);
-                }
-
-                //Query(QueryType.FirmwareVersion);
-            }
-        }
-
-        private void button2_Click(object sender, EventArgs e)
-        {
-            if (colorimeterDetected)
-            {
-                //A new ColorimeterRequest Object is Created and populated with everything we need
-                var request = new ColorimeterRequest()
-                {
                     transferRequest = true
-                };
 
+                    colorimeterRequestType = ColorimeterRequestType.FirmwareVersion
+
+                };
 
                 if (!checkColorimeterConnectionBackgroundWorker.IsBusy)
                 {
@@ -772,6 +915,7 @@ namespace ColorimeterDiagnosticApp
 
             }
         }
+
 
         private void button3_Click(object sender, EventArgs e)
         {
@@ -779,7 +923,11 @@ namespace ColorimeterDiagnosticApp
             {
                 var request = new ColorimeterRequest()
                 {
+
                     testFileVersionRequest = true
+
+                    colorimeterRequestType = ColorimeterRequestType.TestFileVersion
+
                 };
                 if (!checkColorimeterConnectionBackgroundWorker.IsBusy)
                 {
@@ -788,34 +936,43 @@ namespace ColorimeterDiagnosticApp
             }
         }
 
+
         private void checkColorimeterConnectionBackgroundWorker_DoWork(object sender, DoWorkEventArgs e)
         {
+
             //this is the thread where we do our actual longrunning connection work
+
 
             //here is how you get the arguments (incoming object)
             var incomingRequest = (ColorimeterRequest)e.Argument;
 
             var outgoingResponse = new ColorimeterResponse();
 
-            if (incomingRequest.transferRequest)
+            switch (incomingRequest.colorimeterRequestType)
             {
-                outgoingResponse.responseInfo.Add("you requested a transfer");
-            }
-            if (incomingRequest.firmwareVersionRequest)
-            {
-                outgoingResponse.responseInfo.Add("you requested the firmware version");
-                Query(QueryType.FirmwareVersion, outgoingResponse);
-            }
-            if (incomingRequest.testFileVersionRequest)
-            {
-                outgoingResponse.responseInfo.Add("you requested the test file version");
-                Query(QueryType.TestFileVersion, outgoingResponse);
+                case ColorimeterRequestType.Transfer:
+                    outgoingResponse.responseInfo.Add("you requested a transfer");
+                    break;
+                case ColorimeterRequestType.FirmwareVersion:
+                    outgoingResponse.responseInfo.Add("you requested the firmware version");
+                    Query(QueryType.FirmwareVersion, outgoingResponse);
+                    break;
+                case ColorimeterRequestType.TestFileVersion:
+                    outgoingResponse.responseInfo.Add("you requested the test file version");
+                    Query(QueryType.TestFileVersion, outgoingResponse);
+                    break;
+                case ColorimeterRequestType.GetUserTestsFile:
+                    outgoingResponse.responseInfo.Add("you requested the user tests file");
+                    ReceiveTestFile(saveUserTestPathTextBox.Text, outgoingResponse);
+                    break;
+                default:
+                    outgoingResponse.responseInfo.Add("you requested something else");
+                    break;
+
             }
 
             //assign that variable to e.Result
             e.Result = outgoingResponse;
-
-
 
         }
         private void checkColorimeterConnectionBackgroundWorker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 
@@ -7,6 +8,7 @@ namespace ColorimeterDiagnosticApp
 {
     public class ColorimeterRequest
     {
+
         public ColorimeterRequestTypes requestInfo;
         public Boolean transferRequest;
         public Boolean testFileVersionRequest;
@@ -20,12 +22,15 @@ namespace ColorimeterDiagnosticApp
             firmwareVersionRequest = false;
             deviceStateRequest = false;
         }
+
     }
 
-    public enum ColorimeterRequestTypes
+    public enum ColorimeterRequestType
     {
+        NotDefined,
         Transfer,
         FirmwareVersion,
-        TestFileVersion
+        TestFileVersion,
+        GetUserTestsFile
     }
 }
