@@ -9,7 +9,7 @@ namespace ColorimeterDiagnosticApp
     public class ColorimeterRequest
     {
 
-        public ColorimeterRequestTypes requestInfo;
+        public ColorimeterRequestType colorimeterRequestType;
         public Boolean transferRequest;
         public Boolean testFileVersionRequest;
         public Boolean firmwareVersionRequest;

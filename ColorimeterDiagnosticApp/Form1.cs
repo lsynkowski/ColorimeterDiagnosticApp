@@ -861,9 +861,6 @@ namespace ColorimeterDiagnosticApp
                 switch (((Button)sender).Name)
                 {
 
-                    firmwareVersionRequest = true
-                };
-
                     case "GetUserTestsFileButton":
                         request.colorimeterRequestType = ColorimeterRequestType.GetUserTestsFile;
                         break;
@@ -894,48 +891,6 @@ namespace ColorimeterDiagnosticApp
                 saveUserTestPathTextBox.Text = saveFile.FileName;
             }
         }
-
-        private void button1_Click(object sender, EventArgs e)
-        {
-            if (colorimeterDetected)
-            {
-                var request = new ColorimeterRequest()
-                {
-
-                    transferRequest = true
-
-                    colorimeterRequestType = ColorimeterRequestType.FirmwareVersion
-
-                };
-
-                if (!checkColorimeterConnectionBackgroundWorker.IsBusy)
-                {
-                    checkColorimeterConnectionBackgroundWorker.RunWorkerAsync(request);
-                }
-
-            }
-        }
-
-
-        private void button3_Click(object sender, EventArgs e)
-        {
-            if (colorimeterDetected)
-            {
-                var request = new ColorimeterRequest()
-                {
-
-                    testFileVersionRequest = true
-
-                    colorimeterRequestType = ColorimeterRequestType.TestFileVersion
-
-                };
-                if (!checkColorimeterConnectionBackgroundWorker.IsBusy)
-                {
-                    checkColorimeterConnectionBackgroundWorker.RunWorkerAsync(request);
-                }
-            }
-        }
-
 
         private void checkColorimeterConnectionBackgroundWorker_DoWork(object sender, DoWorkEventArgs e)
         {
