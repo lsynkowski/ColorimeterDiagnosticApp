@@ -8,7 +8,7 @@ namespace ColorimeterDiagnosticApp
 {
     public class ColorimeterRequest
     {
-        public ColorimeterRequestTypes colorimeterRequestType;
+        public ColorimeterRequestType colorimeterRequestType;
 
 
         public string taylorTestFile;
@@ -16,10 +16,12 @@ namespace ColorimeterDiagnosticApp
         //File testFile;
     }
 
-    public enum ColorimeterRequestTypes
+    public enum ColorimeterRequestType
     {
+        NotDefined,
         Transfer,
         FirmwareVersion,
-        TestFileVersion
+        TestFileVersion,
+        GetUserTestsFile
     }
 }
