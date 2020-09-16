@@ -10,17 +10,11 @@ namespace ColorimeterDiagnosticApp
     {
 
         public ColorimeterRequestType ColorimeterRequestType;
-        //public Boolean transferRequest;
-        //public Boolean testFileVersionRequest;
-        //public Boolean firmwareVersionRequest;
-        //public Boolean deviceStateRequest;
+    
 
         public ColorimeterRequest()
         {
-            //transferRequest = false;
-            //testFileVersionRequest = false;
-            //firmwareVersionRequest = false;
-            //deviceStateRequest = false;
+
         }
 
     }
@@ -34,5 +28,6 @@ namespace ColorimeterDiagnosticApp
         TestFileVersion = 4,
         DeviceState = 8,
         GetUserTestsFile = 16,
+        GetTestResults = 32,
     }
 }

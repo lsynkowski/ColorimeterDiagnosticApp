@@ -36,6 +36,9 @@
             this.GetUserTestsFileButton = new System.Windows.Forms.Button();
             this.saveUserTestPathTextBox = new System.Windows.Forms.TextBox();
             this.getUserTestFileButton = new System.Windows.Forms.Button();
+            this.testResultFileTextBox = new System.Windows.Forms.TextBox();
+            this.getTestResultFileButton = new System.Windows.Forms.Button();
+            this.GetTestResultsButton = new System.Windows.Forms.Button();
             this.SuspendLayout();
             // 
             // listBox1
@@ -112,11 +115,42 @@
             this.getUserTestFileButton.UseVisualStyleBackColor = true;
             this.getUserTestFileButton.Click += new System.EventHandler(this.browseUserTestSaveButton_Click);
             // 
+            // testResultFileTextBox
+            // 
+            this.testResultFileTextBox.Location = new System.Drawing.Point(74, 258);
+            this.testResultFileTextBox.Name = "testResultFileTextBox";
+            this.testResultFileTextBox.ReadOnly = true;
+            this.testResultFileTextBox.Size = new System.Drawing.Size(285, 20);
+            this.testResultFileTextBox.TabIndex = 12;
+            // 
+            // getTestResultFileButton
+            // 
+            this.getTestResultFileButton.Location = new System.Drawing.Point(382, 258);
+            this.getTestResultFileButton.Name = "getTestResultFileButton";
+            this.getTestResultFileButton.Size = new System.Drawing.Size(106, 20);
+            this.getTestResultFileButton.TabIndex = 13;
+            this.getTestResultFileButton.Text = "Browse";
+            this.getTestResultFileButton.UseVisualStyleBackColor = true;
+            this.getTestResultFileButton.Click += new System.EventHandler(this.browseTestResultsFileButton_Click);
+            // 
+            // GetTestResultsButton
+            // 
+            this.GetTestResultsButton.Location = new System.Drawing.Point(355, 284);
+            this.GetTestResultsButton.Name = "GetTestResultsButton";
+            this.GetTestResultsButton.Size = new System.Drawing.Size(133, 45);
+            this.GetTestResultsButton.TabIndex = 14;
+            this.GetTestResultsButton.Text = "Get Test Results";
+            this.GetTestResultsButton.UseVisualStyleBackColor = true;
+            this.GetTestResultsButton.Click += new System.EventHandler(this.buttonClickHandler);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(600, 581);
+            this.Controls.Add(this.GetTestResultsButton);
+            this.Controls.Add(this.getTestResultFileButton);
+            this.Controls.Add(this.testResultFileTextBox);
             this.Controls.Add(this.getUserTestFileButton);
             this.Controls.Add(this.saveUserTestPathTextBox);
             this.Controls.Add(this.GetUserTestsFileButton);
@@ -143,6 +177,9 @@
         private System.Windows.Forms.Button GetUserTestsFileButton;
         private System.Windows.Forms.TextBox saveUserTestPathTextBox;
         private System.Windows.Forms.Button getUserTestFileButton;
+        private System.Windows.Forms.TextBox testResultFileTextBox;
+        private System.Windows.Forms.Button getTestResultFileButton;
+        private System.Windows.Forms.Button GetTestResultsButton;
     }
 }
 
