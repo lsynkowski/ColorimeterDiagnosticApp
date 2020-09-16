@@ -677,8 +677,8 @@ namespace ColorimeterDiagnosticApp
             }
         }
 
-
-        public void ReceiveTestFile(string receivedTestFileName, ColorimeterResponse colorimeterResponse)
+        // refactor receiveTestFile and ReceiveTestResults into one ReceiveFile function
+        public void ReceiveFile(string fileName, OutCmd outCmd, ColorimeterResponse colorimeterResponse)
         {
             bool done;
             byte checksum = 0;
@@ -687,19 +687,18 @@ namespace ColorimeterDiagnosticApp
             try
             {
                 // If the output file exists, delete it
-                if (File.Exists(receivedTestFileName))
+                if (File.Exists(fileName))
                 {
-                    File.Delete(receivedTestFileName);
+                    File.Delete(fileName);
                 }
-
                 // Open the output file and create an BinaryWriter object so we can write to it
-                outputFileWriter = new BinaryWriter(File.Open(receivedTestFileName, FileMode.OpenOrCreate, FileAccess.Write));
+                outputFileWriter = new BinaryWriter(File.Open(fileName, FileMode.OpenOrCreate, FileAccess.Write));
 
-                // Request the user test file from the colorimeter
-                SendCommand(OutCmd.SendUserTests, colorimeterResponse);
-
+                // Request the file from the colorimeter
+                SendCommand(outCmd, colorimeterResponse);
                 // Wait for ACK
                 SetupRead(colorimeterResponse);
+
                 if (WaitForResponse() == InCmd.ACK)
                 {
                     // Loop, receiving test data until colorimeter tells us we're done
@@ -710,8 +709,9 @@ namespace ColorimeterDiagnosticApp
                         SetupRead(colorimeterResponse);
                         if (WaitForInputReport())
                         {
-                            // Verify that the data we received is user test data
-                            if (inputBuffer[1] == (byte)InCmd.TestData)
+                            // Verify that the data we received is correct given outCmd
+                            if ( (outCmd == OutCmd.SendUserTests && inputBuffer[1] == (byte)InCmd.TestData) || 
+                                 (outCmd == OutCmd.SendTestResults && inputBuffer[1] == (byte)InCmd.ResultsData))
                             {
                                 // Update our checksum
                                 for (int i = 0; i < inputBuffer[2]; i++)
@@ -734,19 +734,22 @@ namespace ColorimeterDiagnosticApp
                                 {
                                     SendCommand(OutCmd.NAK, colorimeterResponse);
                                     colorimeterResponse.responseInfo.Add("Checksums do not match! Checksum Error");
+                                    //MessageBox.Show("Checksums do not match!", "Checksum Error", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
                                 }
                             }
                             else
                             {
-                                SendCommand(OutCmd.NAK,colorimeterResponse);
+                                SendCommand(OutCmd.NAK, colorimeterResponse);
                                 done = true;
-                                colorimeterResponse.responseInfo.Add("Test file transfer failed Error");
+                                colorimeterResponse.responseInfo.Add("File transfer failed Error");
+                                //MessageBox.Show("Test file transfer failed.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
                             }
                         }
                         else
                         {
                             done = true;
-                            colorimeterResponse.responseInfo.Add("Test file transfer failed. Error");
+                            colorimeterResponse.responseInfo.Add("File transfer failed. Error");
+                            //MessageBox.Show("Test file transfer failed.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
                         }
                     }
                 }
@@ -754,6 +757,7 @@ namespace ColorimeterDiagnosticApp
             catch (Exception ex)
             {
                 colorimeterResponse.responseInfo.Add($"{ex.Message} Exception occurred!");
+                //MessageBox.Show(ex.Message, "Exception occurred!", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
             }
 
             finally
@@ -763,99 +767,7 @@ namespace ColorimeterDiagnosticApp
             }
         }
 
-        public void ReceiveTestResults(string testResultsFileName, ColorimeterResponse colorimeterResponse)
-        {
-            bool done;
-            byte checksum = 0;
-            BinaryWriter outputFileWriter = null;
-
-            try
-            {
-                if (colorimeterDetected)
-                {
-                    // If the output file exists, delete it
-                    if (File.Exists(testResultsFileName))
-                    {
-                        File.Delete(testResultsFileName);
-                    }
-
-                    // Open the output file and create an BinaryWriter object so we can write to it
-                    outputFileWriter = new BinaryWriter(File.Open(testResultsFileName, FileMode.OpenOrCreate, FileAccess.Write));
-
-                    // Request the user test file from the colorimeter
-                    SendCommand(OutCmd.SendTestResults, colorimeterResponse);
-
-                    // Wait for ACK
-                    SetupRead(colorimeterResponse);
-                    if (WaitForResponse() == InCmd.ACK)
-                    {
-                        // Loop, receiving test data until colorimeter tells us we're done
-                        done = false;
-                        while (!done)
-                        {
-                            // ACK received, now wait for test data
-                            SetupRead(colorimeterResponse);
-                            if (WaitForInputReport())
-                            {
-                                // We received results data
-                                if (inputBuffer[1] == (byte)InCmd.ResultsData)
-                                {
-                                    // Update our checksum
-                                    for (int i = 0; i < inputBuffer[2]; i++)
-                                    {
-                                        checksum ^= inputBuffer[3 + i];
-                                    }
-
-                                    // If input report received successfully, write data
-                                    outputFileWriter.Write(inputBuffer, 3, inputBuffer[2]);
-                                    SendCommand(OutCmd.ACK, colorimeterResponse);
-                                }
-
-                                // We received notification that data send is complete
-                                else if (inputBuffer[1] == (byte)InCmd.DataSendComplete)
-                                {
-                                    done = true;
-
-                                    // Compare our calculated checksum with the checksum sent by the colorimeter
-                                    if (checksum == inputBuffer[3])
-                                    {
-                                        SendCommand(OutCmd.ACK, colorimeterResponse);
-                                    }
-                                    else
-                                    {
-                                        SendCommand(OutCmd.NAK, colorimeterResponse);
-                                        MessageBox.Show("Checksums do not match!", "Checksum Error", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-                                    }
-                                }
-                                else
-                                {
-                                    SendCommand(OutCmd.NAK, colorimeterResponse);
-                                    done = true;
-                                    MessageBox.Show("Test file transfer failed.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-                                }
-                            }
-                            else
-                            {
-                                done = true;
-                                MessageBox.Show("Test file transfer failed.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message, "Exception occurred!", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-            }
-
-            finally
-            {
-                if (outputFileWriter != null)
-                    outputFileWriter.Close();
-            }
-        }
-
-        private void SendCommand(OutCmd command,ColorimeterResponse colorimeterResponse)
+        private void SendCommand(OutCmd command, ColorimeterResponse colorimeterResponse)
         {
             byte[] outputBuffer = new byte[MyHid.Capabilities.OutputReportByteLength];
 
@@ -1003,12 +915,12 @@ namespace ColorimeterDiagnosticApp
             if (incomingRequest.ColorimeterRequestType.HasFlag(ColorimeterRequestType.GetUserTestsFile))
             {
                 outgoingResponse.responseInfo.Add("you requested the user tests file");
-                ReceiveTestFile(saveUserTestPathTextBox.Text, outgoingResponse);
+                ReceiveFile(saveUserTestPathTextBox.Text, OutCmd.SendUserTests, outgoingResponse);
             }
             if (incomingRequest.ColorimeterRequestType.HasFlag(ColorimeterRequestType.GetTestResults))
             {
                 outgoingResponse.responseInfo.Add("you requested test results");
-                ReceiveTestResults(testResultFileTextBox.Text, outgoingResponse);
+                ReceiveFile(testResultFileTextBox.Text, OutCmd.SendTestResults, outgoingResponse);
             }
 
 
