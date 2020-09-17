@@ -31,6 +31,8 @@ namespace ColorimeterDiagnosticApp
         private String testFileVersion;
         private DeviceStates deviceState;
 
+        // Length of data string read from firmware file (in bytes) cannot exceed this value
+        private const byte maxOutputLen = 60;
 
         //
         private Hid MyHid = new Hid();
@@ -677,7 +679,94 @@ namespace ColorimeterDiagnosticApp
             }
         }
 
-        // refactor receiveTestFile and ReceiveTestResults into one ReceiveFile function
+        public void SendTestFile(string testFilename, OutCmd startCmd, ColorimeterResponse colorimeterResponse)
+        {
+            Boolean done;
+            int i, j, readLen;
+            byte[] outputBuffer = new byte[MyHid.Capabilities.OutputReportByteLength];
+            byte[] testData = new byte[maxOutputLen];
+            BinaryReader testFileReader = new BinaryReader(File.OpenRead((string)testFilename));
+
+            try
+            {
+                if (colorimeterDetected)
+                {
+                    // Alert colorimeter that we are going to start sending test data
+                    SendCommand(startCmd, colorimeterResponse);
+
+                    // Wait for ACK
+                    //this.SetupRead();
+                    if (WaitForResponse() == InCmd.ACK)
+                    {
+                        done = false;
+
+                        // Send each line of firmware file to device
+                        while (!done)
+                        {
+                            readLen = testFileReader.Read(testData, 0, maxOutputLen);
+
+                            // make sure device is still connected
+                            //
+                            // WARNING: This might not work correctly.  ColorimeterDetected is updated in frmMain.OnDeviceChange, but
+                            // will that interrupt this loop?
+                            //
+                            // See note in function header!
+                            if (colorimeterDetected)
+                            {
+                                Array.Clear(outputBuffer, 0, MyHid.Capabilities.OutputReportByteLength);
+
+                                outputBuffer[0] = 0;        // Report number
+
+                                // If readLen is greater than 0, data was read from file
+                                colorimeterResponse.responseInfo.Add("SendTestFile(): read " + readLen + " bytes");
+                                if (readLen > 0)
+                                {
+                                    outputBuffer[1] = Convert.ToByte(OutCmd.TestData);
+                                    outputBuffer[2] = Convert.ToByte(readLen);
+                                }
+
+                                // If readLen is 0, then we've reached EOF
+                                else
+                                {
+                                    outputBuffer[1] = Convert.ToByte(OutCmd.TestComplete);
+                                    outputBuffer[2] = 0;
+
+                                    done = true;
+                                }
+
+                                // Copy test data to output buffer 
+                                for (i = 3, j = 0; j < readLen; i++, j++)
+                                {
+                                    colorimeterResponse.responseInfo.Add("SendTestFile(): data byte " + j + " is " + String.Format(@"\x{0:x2}", Convert.ToByte(testData[j])));
+                                    outputBuffer[i] = Convert.ToByte(testData[j]);
+                                }
+
+                                // send data
+                                Write(ref outputBuffer, colorimeterResponse);
+
+                                // Wait for ACK before proceeding
+                                SetupRead(colorimeterResponse);
+                                if (WaitForResponse() != InCmd.ACK)
+                                {
+                                    // Error occurred
+                                    // todo: actually throw a valid exception
+                                    throw new Exception();
+                                }
+                            } // if (ColorimeterDetected)
+                        } // while ((fwLine = fwFileReader.ReadLine()) != null)
+                    }
+                } // if (ColorimeterDetected)
+
+                // Close test file
+                testFileReader.Close();
+            }
+            catch
+            {
+                colorimeterResponse.responseInfo.Add("Exception thrown in colorimeter.SendTestFile():");
+                testFileReader.Close();
+            }
+        }
+
         public void ReceiveFile(string fileName, OutCmd outCmd, ColorimeterResponse colorimeterResponse)
         {
             bool done;
@@ -775,6 +864,11 @@ namespace ColorimeterDiagnosticApp
             outputBuffer[1] = Convert.ToByte(command);
             outputBuffer[2] = 0;
             Write(ref outputBuffer, colorimeterResponse);
+
+            if (command == OutCmd.FirmwareStart || command == OutCmd.TaylorTestStart || command == OutCmd.UserTestStart)
+            {
+                SetupRead(colorimeterResponse);
+            }
         }
 
         private bool WaitForInputReport()
@@ -843,11 +937,20 @@ namespace ColorimeterDiagnosticApp
 
                 switch (((Button)sender).Name)
                 {
-                    case "GetUserTestsFileButton":
+                    case "SaveUserTestsFileButton":
                         request.ColorimeterRequestType = ColorimeterRequestType.GetUserTestsFile;
                         break;
-                    case "GetTestResultsButton":
+                    case "SaveTestResultsButton":
                         request.ColorimeterRequestType = ColorimeterRequestType.GetTestResults;
+                        break;
+                    case "UpdateUserTestsFileButton":
+                        request.ColorimeterRequestType = ColorimeterRequestType.UpdateUserTestsFile;
+                        break;
+                    case "UpdateTaylorTestsFileButton":
+                        request.ColorimeterRequestType = ColorimeterRequestType.UpdateTaylorTestsFile;
+                        break;
+                    case "UpdateFirmwareButton":
+                        request.ColorimeterRequestType = ColorimeterRequestType.UpdateFirmware;
                         break;
                     default:
                         break;
@@ -861,35 +964,65 @@ namespace ColorimeterDiagnosticApp
             }
         }
 
-        private void browseUserTestSaveButton_Click(object sender, EventArgs e)
+        private void browseSaveFile_Click(object sender, EventArgs e)
         {
             // Create an Open File dialog instance
             SaveFileDialog saveFile = new SaveFileDialog();
 
+            String textBoxName = "";
             // Configure Open File dialog box
-            saveFile.Title = "Save Output File...";
-            saveFile.Filter = "Test Configuration Files (*.tcf)|*.tcf|All Files|*.*";
-
+            switch (((Button)sender).Name)
+            {
+                case "SaveTestResultsBrowseButton":
+                    // Configure Open File dialog box
+                    saveFile.Title = "Test results file...";
+                    saveFile.Filter = "Binary Files (*.bin)|*.bin|All Files|*.*";
+                    textBoxName = "SaveTestResultsPathTextBox";
+                    break;
+                case "SaveUserTestsFileBrowseButton":
+                    // Configure Open File dialog box
+                    saveFile.Title = "Save Output File...";
+                    saveFile.Filter = "Test Configuration Files (*.tcf)|*.tcf|All Files|*.*";
+                    textBoxName = "SaveUserTestPathTextBox";
+                    break;
+                default:
+                    break;
+            }
             // If user click OK, populate filename text box with the selection
             if (saveFile.ShowDialog() == DialogResult.OK)
             {
-                saveUserTestPathTextBox.Text = saveFile.FileName;
+                this.Controls[textBoxName].Text = saveFile.FileName;
             }
         }
 
-        private void browseTestResultsFileButton_Click(object sender, EventArgs e)
+        private void browseOpenFile_Click(object sender, EventArgs e)
         {
             // Create an Open File dialog instance
-            SaveFileDialog saveFile = new SaveFileDialog();
+            OpenFileDialog openFile = new OpenFileDialog();
 
+            String textBoxName = "";
             // Configure Open File dialog box
-            saveFile.Title = "Test results file...";
-            saveFile.Filter = "Binary Files (*.bin)|*.bin|All Files|*.*";
-
-            // If user click OK, populate filename text box with the selection
-            if (saveFile.ShowDialog() == DialogResult.OK)
+            switch (((Button)sender).Name)
             {
-                testResultFileTextBox.Text = saveFile.FileName;
+                case "UpdateUserTestsFileBrowseButton":
+                    // Configure Open File dialog box
+                    openFile.Title = "Browse for User Test Configuration File...";
+                    openFile.Filter = "Test Configuration Files (*.tcf)|*.tcf|All Files|*.*";
+                    textBoxName = "UpdateUserTestsPathTextBox";
+                    break;
+                case "UpdateTaylorTestsFileBrowseButton":
+                    textBoxName = "UpdatTaylorTestsPathTextBox";
+                    break;
+                case "UpdateFirmwareBrowseButton":
+                    textBoxName = "UpdateFirmwarePathTextBox";
+                    break;
+                default:
+                    break;
+            }
+            // If user click OK, populate filename text box with the selection
+            if (openFile.ShowDialog() == DialogResult.OK)
+            {
+                this.Controls[textBoxName].Text = openFile.FileName;
             }
         }
 
@@ -915,12 +1048,20 @@ namespace ColorimeterDiagnosticApp
             if (incomingRequest.ColorimeterRequestType.HasFlag(ColorimeterRequestType.GetUserTestsFile))
             {
                 outgoingResponse.responseInfo.Add("you requested the user tests file");
-                ReceiveFile(saveUserTestPathTextBox.Text, OutCmd.SendUserTests, outgoingResponse);
+                ReceiveFile(SaveUserTestsPathTextBox.Text, OutCmd.SendUserTests, outgoingResponse);
             }
             if (incomingRequest.ColorimeterRequestType.HasFlag(ColorimeterRequestType.GetTestResults))
             {
                 outgoingResponse.responseInfo.Add("you requested test results");
-                ReceiveFile(testResultFileTextBox.Text, OutCmd.SendTestResults, outgoingResponse);
+                ReceiveFile(SaveTestResultsPathTextBox.Text, OutCmd.SendTestResults, outgoingResponse);
+            }
+            if (incomingRequest.ColorimeterRequestType.HasFlag(ColorimeterRequestType.UpdateUserTestsFile))
+            {
+                if(File.Exists(UpdateUserTestsPathTextBox.Text))
+                {
+                    outgoingResponse.responseInfo.Add("you requested update user tests file");
+                    SendTestFile(UpdateUserTestsPathTextBox.Text, OutCmd.UserTestStart, outgoingResponse);
+                }
             }
 
 

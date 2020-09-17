@@ -29,5 +29,8 @@ namespace ColorimeterDiagnosticApp
         DeviceState = 8,
         GetUserTestsFile = 16,
         GetTestResults = 32,
+        UpdateUserTestsFile = 64,
+        UpdateTaylorTestsFile = 128,
+        UpdateFirmware = 256
     }
 }
