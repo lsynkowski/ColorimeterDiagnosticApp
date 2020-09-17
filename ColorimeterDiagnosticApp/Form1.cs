@@ -983,7 +983,7 @@ namespace ColorimeterDiagnosticApp
                     // Configure Open File dialog box
                     saveFile.Title = "Save Output File...";
                     saveFile.Filter = "Test Configuration Files (*.tcf)|*.tcf|All Files|*.*";
-                    textBoxName = "SaveUserTestPathTextBox";
+                    textBoxName = "SaveUserTestsPathTextBox";
                     break;
                 default:
                     break;
