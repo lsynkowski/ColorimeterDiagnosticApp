@@ -199,7 +199,7 @@ namespace ColorimeterDiagnosticApp
                    
                     success = HidD_GetFeature(hidHandle, inFeatureReportBuffer, inFeatureReportBuffer.Length); 
                                         
-                    Debug.Print( "HidD_GetFeature success = " + success );                     
+                    //Debug.Print( "HidD_GetFeature success = " + success );                     
                 } 
                 catch ( Exception ex ) 
                 { 
@@ -246,7 +246,7 @@ namespace ColorimeterDiagnosticApp
                     
                     success = HidD_GetInputReport(hidHandle, inputReportBuffer, inputReportBuffer.Length + 1); 
                     
-                    Debug.Print( "HidD_GetInputReport success = " + success );                     
+                    //Debug.Print( "HidD_GetInputReport success = " + success );                     
                 } 
                 catch ( Exception ex ) 
                 { 
@@ -286,7 +286,7 @@ namespace ColorimeterDiagnosticApp
                     
                     FileIO.CancelIo(readHandle);               
                                         
-                    Debug.WriteLine( "************ReadFile error*************" ); 
+                    //Debug.WriteLine( "************ReadFile error*************" ); 
                     String functionName = "CancelIo";
 
                     
@@ -416,7 +416,7 @@ namespace ColorimeterDiagnosticApp
  
 					if (!success)
                     {
-                        Debug.WriteLine("waiting for ReadFile");
+                        //Debug.WriteLine("waiting for ReadFile");
 
                         //  API function: WaitForSingleObject
 
@@ -440,7 +440,7 @@ namespace ColorimeterDiagnosticApp
                                 //  ReadFile has completed
 
                                 success = true;
-                                Debug.WriteLine("ReadFile completed successfully.");
+                                //Debug.WriteLine("ReadFile completed successfully.");
 
 								// Get the number of bytes read.
 
@@ -465,7 +465,7 @@ namespace ColorimeterDiagnosticApp
                                 //  Cancel the operation on timeout
 
                                 CancelTransfer(hidHandle, readHandle, writeHandle, eventObject);
-                                Debug.WriteLine("Readfile timeout");
+                                //Debug.WriteLine("Readfile timeout");
                                 success = false;
                                 myDeviceDetected = false;
                                 break;
@@ -474,7 +474,7 @@ namespace ColorimeterDiagnosticApp
                                 //  Cancel the operation on other error.
 
                                 CancelTransfer(hidHandle, readHandle, writeHandle, eventObject);
-                                Debug.WriteLine("Readfile undefined error");
+                                //Debug.WriteLine("Readfile undefined error");
                                 success = false;
                                 myDeviceDetected = false;
                                 break;
@@ -556,7 +556,7 @@ namespace ColorimeterDiagnosticApp
                                       
                     success = HidD_SetFeature(hidHandle, outFeatureReportBuffer, outFeatureReportBuffer.Length); 
                     
-                    Debug.Print( "HidD_SetFeature success = " + success ); 
+                    //Debug.Print( "HidD_SetFeature success = " + success ); 
                     
                     return success;                     
                 } 
@@ -608,7 +608,7 @@ namespace ColorimeterDiagnosticApp
                    
                     success = HidD_SetOutputReport(hidHandle, outputReportBuffer, outputReportBuffer.Length + 1); 
                     
-                    Debug.Print( "HidD_SetOutputReport success = " + success ); 
+                    //Debug.Print( "HidD_SetOutputReport success = " + success ); 
                     
                     return success;                     
                 } 
@@ -666,7 +666,7 @@ namespace ColorimeterDiagnosticApp
                     
                     success = FileIO.WriteFile(writeHandle, outputReportBuffer, outputReportBuffer.Length, ref numberOfBytesWritten, IntPtr.Zero);
                     
-                    Debug.Print( "WriteFile success = " + success ); 
+                    //Debug.Print( "WriteFile success = " + success ); 
                     
                     if ( !( ( success ) ) ) 
                     { 
@@ -777,22 +777,22 @@ namespace ColorimeterDiagnosticApp
 				result = HidP_GetCaps(preparsedData, ref Capabilities);
 				if ((result != 0))
 				{
-					Debug.WriteLine("");
-					Debug.WriteLine("  Usage: " + Convert.ToString(Capabilities.Usage, 16));
-					Debug.WriteLine("  Usage Page: " + Convert.ToString(Capabilities.UsagePage, 16));
-					Debug.WriteLine("  Input Report Byte Length: " + Capabilities.InputReportByteLength);
-					Debug.WriteLine("  Output Report Byte Length: " + Capabilities.OutputReportByteLength);
-					Debug.WriteLine("  Feature Report Byte Length: " + Capabilities.FeatureReportByteLength);
-					Debug.WriteLine("  Number of Link Collection Nodes: " + Capabilities.NumberLinkCollectionNodes);
-					Debug.WriteLine("  Number of Input Button Caps: " + Capabilities.NumberInputButtonCaps);
-					Debug.WriteLine("  Number of Input Value Caps: " + Capabilities.NumberInputValueCaps);
-					Debug.WriteLine("  Number of Input Data Indices: " + Capabilities.NumberInputDataIndices);
-					Debug.WriteLine("  Number of Output Button Caps: " + Capabilities.NumberOutputButtonCaps);
-					Debug.WriteLine("  Number of Output Value Caps: " + Capabilities.NumberOutputValueCaps);
-					Debug.WriteLine("  Number of Output Data Indices: " + Capabilities.NumberOutputDataIndices);
-					Debug.WriteLine("  Number of Feature Button Caps: " + Capabilities.NumberFeatureButtonCaps);
-					Debug.WriteLine("  Number of Feature Value Caps: " + Capabilities.NumberFeatureValueCaps);
-					Debug.WriteLine("  Number of Feature Data Indices: " + Capabilities.NumberFeatureDataIndices);
+					//Debug.WriteLine("");
+					//Debug.WriteLine("  Usage: " + Convert.ToString(Capabilities.Usage, 16));
+					//Debug.WriteLine("  Usage Page: " + Convert.ToString(Capabilities.UsagePage, 16));
+					//Debug.WriteLine("  Input Report Byte Length: " + Capabilities.InputReportByteLength);
+					//Debug.WriteLine("  Output Report Byte Length: " + Capabilities.OutputReportByteLength);
+					//Debug.WriteLine("  Feature Report Byte Length: " + Capabilities.FeatureReportByteLength);
+					//Debug.WriteLine("  Number of Link Collection Nodes: " + Capabilities.NumberLinkCollectionNodes);
+					//Debug.WriteLine("  Number of Input Button Caps: " + Capabilities.NumberInputButtonCaps);
+					//Debug.WriteLine("  Number of Input Value Caps: " + Capabilities.NumberInputValueCaps);
+					//Debug.WriteLine("  Number of Input Data Indices: " + Capabilities.NumberInputDataIndices);
+					//Debug.WriteLine("  Number of Output Button Caps: " + Capabilities.NumberOutputButtonCaps);
+					//Debug.WriteLine("  Number of Output Value Caps: " + Capabilities.NumberOutputValueCaps);
+					//Debug.WriteLine("  Number of Output Data Indices: " + Capabilities.NumberOutputDataIndices);
+					//Debug.WriteLine("  Number of Feature Button Caps: " + Capabilities.NumberFeatureButtonCaps);
+					//Debug.WriteLine("  Number of Feature Value Caps: " + Capabilities.NumberFeatureValueCaps);
+					//Debug.WriteLine("  Number of Feature Data Indices: " + Capabilities.NumberFeatureDataIndices);
 
 					//  ***
 					//  API function: HidP_GetValueCaps
@@ -1006,12 +1006,12 @@ namespace ColorimeterDiagnosticApp
 
                 if (myEnvironment.Version >= versionXP)                 
                 { 
-                    Debug.Write( "The OS is Windows XP or later." ); 
+                    //Debug.Write( "The OS is Windows XP or later." ); 
                     return true; 
                 } 
                 else 
                 { 
-                    Debug.Write( "The OS is earlier than Windows XP." ); 
+                    //Debug.Write( "The OS is earlier than Windows XP." ); 
                     return false; 
                 }                 
             } 
@@ -1043,12 +1043,12 @@ namespace ColorimeterDiagnosticApp
 
                 if (myEnvironment.Version < version98SE)                
                 { 
-                    Debug.Write( "The OS is Windows 98 Gold." );
+                    //Debug.Write( "The OS is Windows 98 Gold." );
                     result = true; 
                 } 
                 else 
                 { 
-                    Debug.Write( "The OS is more recent than Windows 98 Gold." );
+                    //Debug.Write( "The OS is more recent than Windows 98 Gold." );
                     result = false; 
                 }
                 return result;
@@ -1081,7 +1081,7 @@ namespace ColorimeterDiagnosticApp
             caption = "Unexpected Exception"; 
             
             MessageBox.Show( message, caption, MessageBoxButtons.OK ); 
-            Debug.Write( message );             
+            //Debug.Write( message );             
         }         
     } 
 } 

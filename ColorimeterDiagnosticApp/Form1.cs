@@ -17,6 +17,8 @@ namespace ColorimeterDiagnosticApp
         private const Int32 DBT_DEVTYP_DEVICEINTERFACE = 5;
         private const Int32 DEVICE_NOTIFY_WINDOW_HANDLE = 0;
 
+        private const int NUMBER_OF_DEVICE_PATHNAMES = 128;
+
         //variables from Colorimeter Class
         private Boolean colorimeterDetected = false;
         private String colorimeterPathName;
@@ -26,6 +28,10 @@ namespace ColorimeterDiagnosticApp
         private SafeFileHandle writeHandle;
         private byte[] inputBuffer;
         private Boolean newInputData;
+
+        //this could go in the colorimeter class
+        private const short ColorimeterProductID = 0x0003;
+        private const short ColorimeterVendorID = 0x2229;
 
         private string firmwareVersion;
         private String testFileVersion;
@@ -67,9 +73,55 @@ namespace ColorimeterDiagnosticApp
                     //// Look for a colorimeter if one isn't already attached
                     if (colorimeterDetected == false)
                     {
-                        if (FindDevice() == true)
+                        //if we have a path to the device, then the colorimeter is connected 
+                        var devicePath = FindDevicePath(ColorimeterProductID, ColorimeterVendorID);
+                        
+                        if (!devicePath.Equals(null))
                         {
-                            listBox1.Items.Add("Found colorimeter");
+                            listBox1.Items.Add("Found colorimeter path");
+
+                            colorimeterDetected = true;
+                            colorimeterPathName = devicePath;
+
+                            //  Learn the capabilities of the device.
+                            MyHid.Capabilities = MyHid.GetDeviceCapabilities(hidHandle);
+
+                            //  Find out if the device is a system mouse or keyboard.
+                            hidUsage = MyHid.GetHidUsage(MyHid.Capabilities);
+
+                            //  Get handles to use in requesting Input and Output reports.
+                            readHandle = FileIO.CreateFile(colorimeterPathName, FileIO.GENERIC_READ, FileIO.FILE_SHARE_READ | FileIO.FILE_SHARE_WRITE, IntPtr.Zero, FileIO.OPEN_EXISTING, FileIO.FILE_FLAG_OVERLAPPED, 0);
+
+                            // Initialize input report buffer
+                            inputBuffer = new byte[MyHid.Capabilities.InputReportByteLength];
+                            newInputData = false;
+
+                            if (readHandle.IsInvalid)
+                            {
+                                listBox1.Items.Add("Device read handle invalid");
+
+                            }
+                            else
+                            {
+                                writeHandle = FileIO.CreateFile(colorimeterPathName, FileIO.GENERIC_WRITE, FileIO.FILE_SHARE_READ | FileIO.FILE_SHARE_WRITE, IntPtr.Zero, FileIO.OPEN_EXISTING, 0, 0);
+
+                                //  Flush any waiting reports in the input buffer. (optional)
+                                MyHid.FlushQueue(readHandle);
+
+
+                                // Start checkColorimeterDeviceStateBackgroundWorker
+                                // When the Background Worker completes, a different backgroundworker
+                                // is called to get the firmware and test file versions
+                                var request = new ColorimeterRequest()
+                                {
+                                    ColorimeterRequestType = ColorimeterRequestType.DeviceState
+                                };
+                                if (!checkColorimeterDeviceStateBackgroundWorker.IsBusy)
+                                {
+                                    checkColorimeterDeviceStateBackgroundWorker.RunWorkerAsync(request);
+                                }
+                            }
+
                         }
                     }
 
@@ -96,12 +148,10 @@ namespace ColorimeterDiagnosticApp
                         colorimeterDetected = false;
                     }
 
-
-
                 }
 
 
-                listBox1.Items.Add($"WParam : { m.WParam }   |LParam : { m.LParam }  |Result : { m.Result }  |MHWnd : { m.HWnd }");
+                //listBox1.Items.Add($"WParam : { m.WParam }   |LParam : { m.LParam }  |Result : { m.Result }  |MHWnd : { m.HWnd }");
                 listBox1.SelectedIndex = listBox1.Items.Count - 1;
             }
 
@@ -223,199 +273,237 @@ namespace ColorimeterDiagnosticApp
         /// </summary>
         /// 
         /// <returns>True if device was found, False if device was not found</returns>
-        public Boolean FindDevice()
+        //public Boolean FindDevice(short productID, short vendorID)
+        //{
+
+        //    Boolean success = false;
+
+        //    try
+        //    {
+        //        Guid colorimeterGuid = Guid.Empty;
+        //        HidD_GetHidGuid(ref colorimeterGuid);
+        //        listBox1.Items.Add("   *** GUID for system HIDs: " + colorimeterGuid.ToString());
+
+
+        //        String[] devicePathNames = MyDeviceManagement.FindDevicePathsFromGuid(colorimeterGuid,NUMBER_OF_DEVICE_PATHNAMES);
+
+        //        if (devicePathNames.Length > 0)
+        //        {
+        //            foreach(var devicePathName in devicePathNames)
+        //            {
+
+        //                //iterate through all possible device paths to see if the hidhandle matches the ones for out devices
+        //                hidHandle = FileIO.CreateFile(devicePathName, 0, FileIO.FILE_SHARE_READ | FileIO.FILE_SHARE_WRITE, IntPtr.Zero, FileIO.OPEN_EXISTING, 0, 0);
+
+        //                if (!hidHandle.IsInvalid)
+        //                {
+        //                    //  The returned handle is valid, 
+        //                    //  so find out if this is the device we're looking for.
+
+        //                    //  Set the Size property of DeviceAttributes to the number of bytes in the structure.
+        //                    MyHid.DeviceAttributes.Size = Marshal.SizeOf(MyHid.DeviceAttributes);
+
+        //                    //  ***
+        //                    //  API function:
+        //                    //  HidD_GetAttributes
+
+        //                    //  Purpose:
+        //                    //  Retrieves a HIDD_ATTRIBUTES structure containing the Vendor ID, 
+        //                    //  Product ID, and Product Version Number for a device.
+
+        //                    //  Accepts:
+        //                    //  A handle returned by CreateFile.
+        //                    //  A pointer to receive a HIDD_ATTRIBUTES structure.
+
+        //                    //  Returns:
+        //                    //  True on success, False on failure.
+        //                    //  ***                            
+        //                    success = Hid.HidD_GetAttributes(hidHandle, ref MyHid.DeviceAttributes);
+
+        //                    if (success)
+        //                    {
+        //                        //  Find out if the device matches the one we're looking for.
+        //                        if ((MyHid.DeviceAttributes.VendorID == vendorID) && (MyHid.DeviceAttributes.ProductID == productID))
+        //                        {
+        //                            listBox1.Items.Add("  My device detected");
+
+        //                            //  Display the information in form's list box.
+        //                            listBox1.Items.Add("Device detected:");
+        //                            listBox1.Items.Add("  Vendor ID = " + Convert.ToString(MyHid.DeviceAttributes.VendorID, 16));
+        //                            listBox1.Items.Add("  Product ID = " + Convert.ToString(MyHid.DeviceAttributes.ProductID, 16));
+
+        //                            colorimeterDetected = true;
+
+        //                            //  Save the DevicePathName for OnDeviceChange().
+        //                            colorimeterPathName = devicePathName;
+
+        //                            break;
+        //                        }
+        //                        else
+        //                        {
+        //                            //  It's not a match, so close the handle.
+        //                            colorimeterDetected = false;
+        //                            hidHandle.Close();
+        //                        }
+        //                    }
+        //                    else
+        //                    {
+        //                        //  There was a problem in retrieving the information.
+        //                        listBox1.Items.Add("  Error in filling HIDD_ATTRIBUTES structure.");
+        //                        colorimeterDetected = false;
+        //                        hidHandle.Close();
+        //                    }
+        //                }
+
+        //            }
+                    
+        //        }
+
+        //        if (colorimeterDetected)
+        //        {
+        //            //  The device was detected.
+        //            //  Register main form to receive notifications if the device is removed or attached.
+        //            // success = this.MyDeviceManagement.RegisterForDeviceNotifications(this.colorimeterPathName, this.mainFormHandle, colorimeterGuid, ref this.deviceNotificationHandle);
+
+        //            // Debug.WriteLine("RegisterForDeviceNotifications = " + success);
+
+        //            //  Learn the capabilities of the device.
+        //            MyHid.Capabilities = MyHid.GetDeviceCapabilities(hidHandle);
+
+        //            if (success)
+        //            {
+        //                //  Find out if the device is a system mouse or keyboard.
+        //                hidUsage = MyHid.GetHidUsage(MyHid.Capabilities);
+
+        //                //  Get handles to use in requesting Input and Output reports.
+        //                readHandle = FileIO.CreateFile(colorimeterPathName, FileIO.GENERIC_READ, FileIO.FILE_SHARE_READ | FileIO.FILE_SHARE_WRITE, IntPtr.Zero, FileIO.OPEN_EXISTING, FileIO.FILE_FLAG_OVERLAPPED, 0);
+
+        //                string functionName = "CreateFile, ReadHandle";
+        //                listBox1.Items.Add(functionName);
+        //                listBox1.Items.Add("  Returned handle: " + readHandle.ToString());
+
+        //                // Initialize input report buffer
+        //                inputBuffer = new byte[MyHid.Capabilities.InputReportByteLength];
+        //                newInputData = false;
+
+        //                if (readHandle.IsInvalid)
+        //                {
+        //                    listBox1.Items.Add("The device is a system " + hidUsage + ".");
+        //                    listBox1.Items.Add("Windows 2000 and Windows XP obtain exclusive access to Input and Output reports for this devices.");
+        //                    listBox1.Items.Add("Applications can access Feature reports only.");
+        //                }
+        //                else
+        //                {
+        //                    writeHandle = FileIO.CreateFile(colorimeterPathName, FileIO.GENERIC_WRITE, FileIO.FILE_SHARE_READ | FileIO.FILE_SHARE_WRITE, IntPtr.Zero, FileIO.OPEN_EXISTING, 0, 0);
+
+        //                    functionName = "CreateFile, WriteHandle";
+        //                    listBox1.Items.Add(functionName);
+        //                    listBox1.Items.Add("  Returned handle: " + writeHandle.ToString());
+
+        //                    //  Flush any waiting reports in the input buffer. (optional)
+        //                    MyHid.FlushQueue(readHandle);
+
+        //                    // Colorimeter has been found, query it to determine if it's running
+        //                    // bootloader or main firmware
+        //                    //if (this.QueryDeviceState() == true)
+        //                    //{
+        //                    //    // This could be an error, if we get here the device wasn't found
+        //                    //    // todo: might want to check for DeviceState.Unknown also, that would be a problem
+        //                    //}
+
+
+        //                    // Start checkColorimeterDeviceStateBackgroundWorker
+        //                    // When the Background Worker completes, a different backgroundworker
+        //                    // is called to get the firmware and test file versions
+        //                    var request = new ColorimeterRequest()
+        //                    {
+        //                        ColorimeterRequestType = ColorimeterRequestType.DeviceState
+        //                    };
+        //                    if (!checkColorimeterDeviceStateBackgroundWorker.IsBusy)
+        //                    {
+        //                        checkColorimeterDeviceStateBackgroundWorker.RunWorkerAsync(request);
+        //                    }
+        //                }
+        //            }
+        //        }
+        //        else
+        //        {
+        //            //  The device wasn't detected.
+        //            listBox1.Items.Add("Device not found.");
+        //            listBox1.Items.Add(" Device not found.");
+        //        }
+        //        return colorimeterDetected;
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        //frmMain.DisplayException("Colorimeter.FindDevice()", ex);
+        //        throw;
+        //    }
+        //}
+
+
+        private string FindDevicePath(short productID, short vendorID)
         {
-            Boolean deviceFound = false;
-            String functionName = "";
-            String[] devicePathName = new String[128];
-            Guid colorimeterGuid = Guid.Empty;
-            Int32 memberIndex = 0;
-            Int16 myProductID = 0x0003;
-            Int16 myVendorID = 0x2229;
-            Boolean success = false;
 
             try
             {
+
+                Guid colorimeterGuid = Guid.Empty;
+
                 HidD_GetHidGuid(ref colorimeterGuid);
                 listBox1.Items.Add("   *** GUID for system HIDs: " + colorimeterGuid.ToString());
 
-                deviceFound = MyDeviceManagement.FindDeviceFromGuid(colorimeterGuid, ref devicePathName);
+                String[] devicePathNames = MyDeviceManagement.FindDevicePathsFromGuid(colorimeterGuid, NUMBER_OF_DEVICE_PATHNAMES);
 
-                if (deviceFound)
+                if (devicePathNames.Length > 0)
                 {
-                    memberIndex = 0;
-
-                    do
+                    foreach (var devicePathName in devicePathNames)
                     {
-                        //  ***
-                        //  API function:
-                        //  CreateFile
 
-                        //  Purpose:
-                        //  Retrieves a handle to a device.
-
-                        //  Accepts:
-                        //  A device path name returned by SetupDiGetDeviceInterfaceDetail
-                        //  The type of access requested (read/write).
-                        //  FILE_SHARE attributes to allow other processes to access the device while this handle is open.
-                        //  A Security structure or Nothing. 
-                        //  A creation disposition value. Use OPEN_EXISTING for devices.
-                        //  Flags and attributes for files. Not used for devices.
-                        //  Handle to a template file. Not used.
-
-                        //  Returns: a handle without read or write access.
-                        //  This enables obtaining information about all HIDs, even system
-                        //  keyboards and mice. 
-                        //  Separate handles are used for reading and writing.
-                        //  ***
-
-                        hidHandle = FileIO.CreateFile(devicePathName[memberIndex], 0, FileIO.FILE_SHARE_READ | FileIO.FILE_SHARE_WRITE, IntPtr.Zero, FileIO.OPEN_EXISTING, 0, 0);
+                        //iterate through all possible device paths to see if the hidhandle matches the ones for out devices
+                        hidHandle = FileIO.CreateFile(devicePathName, 0, FileIO.FILE_SHARE_READ | FileIO.FILE_SHARE_WRITE, IntPtr.Zero, FileIO.OPEN_EXISTING, 0, 0);
 
                         if (!hidHandle.IsInvalid)
                         {
-                            //  The returned handle is valid, 
-                            //  so find out if this is the device we're looking for.
 
                             //  Set the Size property of DeviceAttributes to the number of bytes in the structure.
                             MyHid.DeviceAttributes.Size = Marshal.SizeOf(MyHid.DeviceAttributes);
 
-                            //  ***
-                            //  API function:
-                            //  HidD_GetAttributes
-
-                            //  Purpose:
-                            //  Retrieves a HIDD_ATTRIBUTES structure containing the Vendor ID, 
-                            //  Product ID, and Product Version Number for a device.
-
-                            //  Accepts:
-                            //  A handle returned by CreateFile.
-                            //  A pointer to receive a HIDD_ATTRIBUTES structure.
-
-                            //  Returns:
-                            //  True on success, False on failure.
-                            //  ***                            
-                            success = Hid.HidD_GetAttributes(hidHandle, ref MyHid.DeviceAttributes);
-
-                            if (success)
+                            if (Hid.HidD_GetAttributes(hidHandle, ref MyHid.DeviceAttributes))
                             {
                                 //  Find out if the device matches the one we're looking for.
-                                if ((MyHid.DeviceAttributes.VendorID == myVendorID) && (MyHid.DeviceAttributes.ProductID == myProductID))
+                                if ((MyHid.DeviceAttributes.VendorID == vendorID) && (MyHid.DeviceAttributes.ProductID == productID))
                                 {
-                                    listBox1.Items.Add("  My device detected");
 
-                                    //  Display the information in form's list box.
-                                    listBox1.Items.Add("Device detected:");
-                                    listBox1.Items.Add("  Vendor ID = " + Convert.ToString(MyHid.DeviceAttributes.VendorID, 16));
-                                    listBox1.Items.Add("  Product ID = " + Convert.ToString(MyHid.DeviceAttributes.ProductID, 16));
+                                    return devicePathName;
 
-                                    colorimeterDetected = true;
-
-                                    //  Save the DevicePathName for OnDeviceChange().
-                                    colorimeterPathName = devicePathName[memberIndex];
                                 }
                                 else
                                 {
-                                    //  It's not a match, so close the handle.
-                                    colorimeterDetected = false;
                                     hidHandle.Close();
                                 }
                             }
                             else
                             {
-                                //  There was a problem in retrieving the information.
-                                listBox1.Items.Add("  Error in filling HIDD_ATTRIBUTES structure.");
-                                colorimeterDetected = false;
                                 hidHandle.Close();
                             }
                         }
 
-                        //  Keep looking until we find the device or there are no devices left to examine.
-                        memberIndex = memberIndex + 1;
                     }
-                    while (!((colorimeterDetected | (memberIndex == devicePathName.Length))));
+
                 }
 
-                if (colorimeterDetected)
-                {
-                    //  The device was detected.
-                    //  Register main form to receive notifications if the device is removed or attached.
-                    // success = this.MyDeviceManagement.RegisterForDeviceNotifications(this.colorimeterPathName, this.mainFormHandle, colorimeterGuid, ref this.deviceNotificationHandle);
-
-                    // Debug.WriteLine("RegisterForDeviceNotifications = " + success);
-
-                    //  Learn the capabilities of the device.
-                    MyHid.Capabilities = MyHid.GetDeviceCapabilities(hidHandle);
-
-                    if (success)
-                    {
-                        //  Find out if the device is a system mouse or keyboard.
-                        hidUsage = MyHid.GetHidUsage(MyHid.Capabilities);
-
-                        //  Get handles to use in requesting Input and Output reports.
-                        readHandle = FileIO.CreateFile(colorimeterPathName, FileIO.GENERIC_READ, FileIO.FILE_SHARE_READ | FileIO.FILE_SHARE_WRITE, IntPtr.Zero, FileIO.OPEN_EXISTING, FileIO.FILE_FLAG_OVERLAPPED, 0);
-
-                        functionName = "CreateFile, ReadHandle";
-                        listBox1.Items.Add(functionName);
-                        listBox1.Items.Add("  Returned handle: " + readHandle.ToString());
-
-                        // Initialize input report buffer
-                        inputBuffer = new byte[MyHid.Capabilities.InputReportByteLength];
-                        newInputData = false;
-
-                        if (readHandle.IsInvalid)
-                        {
-                            listBox1.Items.Add("The device is a system " + hidUsage + ".");
-                            listBox1.Items.Add("Windows 2000 and Windows XP obtain exclusive access to Input and Output reports for this devices.");
-                            listBox1.Items.Add("Applications can access Feature reports only.");
-                        }
-                        else
-                        {
-                            writeHandle = FileIO.CreateFile(colorimeterPathName, FileIO.GENERIC_WRITE, FileIO.FILE_SHARE_READ | FileIO.FILE_SHARE_WRITE, IntPtr.Zero, FileIO.OPEN_EXISTING, 0, 0);
-
-                            functionName = "CreateFile, WriteHandle";
-                            listBox1.Items.Add(functionName);
-                            listBox1.Items.Add("  Returned handle: " + writeHandle.ToString());
-
-                            //  Flush any waiting reports in the input buffer. (optional)
-                            MyHid.FlushQueue(readHandle);
-
-                            // Colorimeter has been found, query it to determine if it's running
-                            // bootloader or main firmware
-                            //if (this.QueryDeviceState() == true)
-                            //{
-                            //    // This could be an error, if we get here the device wasn't found
-                            //    // todo: might want to check for DeviceState.Unknown also, that would be a problem
-                            //}
-
-
-                            // Start checkColorimeterDeviceStateBackgroundWorker
-                            // When the Background Worker completes, a different backgroundworker
-                            // is called to get the firmware and test file versions
-                            var request = new ColorimeterRequest()
-                            {
-                                ColorimeterRequestType = ColorimeterRequestType.DeviceState
-                            };
-                            if (!checkColorimeterDeviceStateBackgroundWorker.IsBusy)
-                            {
-                                checkColorimeterDeviceStateBackgroundWorker.RunWorkerAsync(request);
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    //  The device wasn't detected.
-                    listBox1.Items.Add("Device not found.");
-                    listBox1.Items.Add(" Device not found.");
-                }
-                return colorimeterDetected;
             }
             catch (Exception ex)
             {
-                //frmMain.DisplayException("Colorimeter.FindDevice()", ex);
-                throw;
+
             }
+
+            return null;
         }
+
+
+
         public enum QueryType
         {
             FirmwareVersion,
@@ -436,46 +524,44 @@ namespace ColorimeterDiagnosticApp
             byte[] outputBuffer = new byte[MyHid.Capabilities.OutputReportByteLength];
             Boolean retval = false;
 
-            if (colorimeterDetected)
+            // Build output packet
+            outputBuffer[0] = 0;
+            // outputBuffer[1] different for each QueryType
+            switch (queryType)
             {
-                // Build output packet
-                outputBuffer[0] = 0;
-                // outputBuffer[1] different for each QueryType
+                case QueryType.FirmwareVersion:
+                    outputBuffer[1] = Convert.ToByte(OutCmd.SendFwVers);//the value of the query firmware vers
+                    break;
+                case QueryType.TestFileVersion:
+                    outputBuffer[1] = Convert.ToByte(OutCmd.SendTestFileVers);//the value of the query test file vers
+                    break;
+                case QueryType.DeviceState:
+                    outputBuffer[1] = Convert.ToByte(OutCmd.QueryFirmwareState);//the value of the query firmware state
+                    break;
+            }
+            outputBuffer[2] = 0;
+            Write(ref outputBuffer, response);
+            // Setup to read response
+            if (SetupRead(response) == true)
+            {
                 switch (queryType)
                 {
                     case QueryType.FirmwareVersion:
-                        outputBuffer[1] = Convert.ToByte(OutCmd.SendFwVers);//the value of the query firmware vers
+                        retval = QueryFirmwareVersion(response);
                         break;
                     case QueryType.TestFileVersion:
-                        outputBuffer[1] = Convert.ToByte(OutCmd.SendTestFileVers);//the value of the query test file vers
+                        retval = QueryTestFileVersion(response);
                         break;
                     case QueryType.DeviceState:
-                        outputBuffer[1] = Convert.ToByte(OutCmd.QueryFirmwareState);//the value of the query firmware state
+                        retval = QueryDeviceState(response);
                         break;
                 }
-                outputBuffer[2] = 0;
-                Write(ref outputBuffer, response);
-                // Setup to read response
-                if (SetupRead(response) == true)
-                {
-                    switch (queryType)
-                    {
-                        case QueryType.FirmwareVersion:
-                            retval = QueryFirmwareVersion(response);
-                            break;
-                        case QueryType.TestFileVersion:
-                            retval = QueryTestFileVersion(response);
-                            break;
-                        case QueryType.DeviceState:
-                            retval = QueryDeviceState(response);
-                            break;
-                    }
-                }
-                else
-                {
-                    retval = false;
-                }
             }
+            else
+            {
+                retval = false;
+            }
+
             return retval;
         }
 
@@ -540,31 +626,28 @@ namespace ColorimeterDiagnosticApp
 
             try
             {
-                // If colorimeter is connected, write to device
-                if ((colorimeterDetected == true))
-                {
-                    // Check write handle
-                    if (!writeHandle.IsInvalid)
-                    {
-                        if (MyHid.Capabilities.OutputReportByteLength > 0)
-                        {
-                            Hid.OutputReportViaInterruptTransfer outputReport = new Hid.OutputReportViaInterruptTransfer();
-                            success = outputReport.Write(outputBuffer, writeHandle);
 
-                            if (!success)
-                            {
-                                response.responseInfo.Add("Write to colorimeter failed.");
-                            }
-                        }
-                        else
+                // Check write handle
+                if (!writeHandle.IsInvalid)
+                {
+                    if (MyHid.Capabilities.OutputReportByteLength > 0)
+                    {
+                        Hid.OutputReportViaInterruptTransfer outputReport = new Hid.OutputReportViaInterruptTransfer();
+                        success = outputReport.Write(outputBuffer, writeHandle);
+
+                        if (!success)
                         {
-                            response.responseInfo.Add("This HID device doesn't have an Output report.");
+                            response.responseInfo.Add("Write to colorimeter failed.");
                         }
                     }
                     else
                     {
-                        response.responseInfo.Add("Invalid write handle.");
+                        response.responseInfo.Add("This HID device doesn't have an Output report.");
                     }
+                }
+                else
+                {
+                    response.responseInfo.Add("Invalid write handle.");
                 }
 
                 return success;
@@ -588,36 +671,30 @@ namespace ColorimeterDiagnosticApp
 
             try
             {
-                if (colorimeterDetected == true)
+
+                // Check read handle
+                if (!readHandle.IsInvalid)
                 {
-                    // Check read handle
-                    if (!readHandle.IsInvalid)
+                    if (MyHid.Capabilities.InputReportByteLength > 0)
                     {
-                        if (MyHid.Capabilities.InputReportByteLength > 0)
-                        {
-                            Hid.InputReportViaInterruptTransfer myInputReport = new Hid.InputReportViaInterruptTransfer();
-                            myInputReport.Read(hidHandle, readHandle, writeHandle, ref colorimeterDetected, ref inputBuffer, ref success);
-                            InputReportReceived(ref inputBuffer, success, response);
+                        Hid.InputReportViaInterruptTransfer myInputReport = new Hid.InputReportViaInterruptTransfer();
 
-                            // IAsyncResult ar = null;
-                            // Hid.InputReportViaInterruptTransfer myInputReport = new Hid.InputReportViaInterruptTransfer();
-                            // ReadInputReportDelegate MyReadInputReportDelegate = new ReadInputReportDelegate(myInputReport.Read);
+                        //i don't want this sub function to be able to disconnect the colorimeter
+                        var myColorimeterDetected = true;
 
-                            // ar = MyReadInputReportDelegate.BeginInvoke(hidHandle, readHandle, writeHandle, ref ColorimeterDetected, ref inputBuffer, ref success, new AsyncCallback(InputReportReceived), MyReadInputReportDelegate);
-                        }
-                        else
-                        {
-                            response.responseInfo.Add("This HID device doesn't have an Input report.");
-                        }
+
+                        myInputReport.Read(hidHandle, readHandle, writeHandle, ref myColorimeterDetected, ref inputBuffer, ref success);
+                        InputReportReceived(ref inputBuffer, success, response);
+
                     }
                     else
                     {
-                        response.responseInfo.Add("Invalid read handle.");
+                        response.responseInfo.Add("This HID device doesn't have an Input report.");
                     }
                 }
                 else
                 {
-                    response.responseInfo.Add("Colorimeter not detected");
+                    response.responseInfo.Add("Invalid read handle.");
                 }
 
                 return success;
@@ -689,8 +766,6 @@ namespace ColorimeterDiagnosticApp
 
             try
             {
-                if (colorimeterDetected)
-                {
                     // Alert colorimeter that we are going to start sending test data
                     SendCommand(startCmd, colorimeterResponse);
 
@@ -711,8 +786,8 @@ namespace ColorimeterDiagnosticApp
                             // will that interrupt this loop?
                             //
                             // See note in function header!
-                            if (colorimeterDetected)
-                            {
+                           // if (colorimeterDetected)
+                            //{
                                 Array.Clear(outputBuffer, 0, MyHid.Capabilities.OutputReportByteLength);
 
                                 outputBuffer[0] = 0;        // Report number
@@ -752,10 +827,9 @@ namespace ColorimeterDiagnosticApp
                                     // todo: actually throw a valid exception
                                     throw new Exception();
                                 }
-                            } // if (ColorimeterDetected)
+                            //} // if (ColorimeterDetected)
                         } // while ((fwLine = fwFileReader.ReadLine()) != null)
                     }
-                } // if (ColorimeterDetected)
 
                 // Close test file
                 testFileReader.Close();
