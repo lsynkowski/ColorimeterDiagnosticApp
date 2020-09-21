@@ -61,41 +61,67 @@ namespace ColorimeterDiagnosticApp
         //  If IsStringRange is false, StringMin is the String index and StringMax is unused.
         //  If IsDesignatorRange is false, DesignatorMin is the designator index and DesignatorMax is unused.
 
-        internal struct HidP_Value_Caps
+        public static string FindDevicePath(short productID, short vendorID, String[] devicePathNames)
         {
-            internal Int16 UsagePage;
-            internal Byte ReportID;
-            internal Int32 IsAlias;
-            internal Int16 BitField;
-            internal Int16 LinkCollection;
-            internal Int16 LinkUsage;
-            internal Int16 LinkUsagePage;
-            internal Int32 IsRange;
-            internal Int32 IsStringRange;
-            internal Int32 IsDesignatorRange;
-            internal Int32 IsAbsolute;
-            internal Int32 HasNull;
-            internal Byte Reserved;
-            internal Int16 BitSize;
-            internal Int16 ReportCount;
-            internal Int16 Reserved2;
-            internal Int16 Reserved3;
-            internal Int16 Reserved4;
-            internal Int16 Reserved5;
-            internal Int16 Reserved6;
-            internal Int32 LogicalMin;
-            internal Int32 LogicalMax;
-            internal Int32 PhysicalMin;
-            internal Int32 PhysicalMax;
-            internal Int16 UsageMin;
-            internal Int16 UsageMax;
-            internal Int16 StringMin;
-            internal Int16 StringMax;
-            internal Int16 DesignatorMin;
-            internal Int16 DesignatorMax;
-            internal Int16 DataIndexMin;
-            internal Int16 DataIndexMax;
+
+            try
+            {
+
+
+
+                if (devicePathNames.Length > 0)
+                {
+                    foreach (var devicePathName in devicePathNames)
+                    {
+
+                        //iterate through all possible device paths to see if the hidhandle matches the ones for out devices
+                        var hidHandle = FileIO.CreateFile(devicePathName, 0, FileIO.FILE_SHARE_READ | FileIO.FILE_SHARE_WRITE, IntPtr.Zero, FileIO.OPEN_EXISTING, 0, 0);
+
+                        if (!hidHandle.IsInvalid)
+                        {
+
+                            //we need to set this in another location, as it has nothing to do with this method
+                            //moving this to Colorimeter constructor
+                            //MyHid.DeviceAttributes.Size = Marshal.SizeOf(MyHid.DeviceAttributes);
+
+                            var hidDeviceAttributes = new Hid.HIDD_ATTRIBUTES();
+
+                            if (Hid.HidD_GetAttributes(hidHandle, ref hidDeviceAttributes))
+                            {
+                                //  Find out if the device matches the one we're looking for.
+                                if ((hidDeviceAttributes.VendorID == vendorID) && (hidDeviceAttributes.ProductID == productID))
+                                {
+
+                                    return devicePathName;
+
+                                }
+                                else
+                                {
+                                    hidHandle.Close();
+                                }
+                            }
+                            else
+                            {
+                                hidHandle.Close();
+                            }
+                        }
+
+                    }
+
+                }
+
+            }
+            catch (Exception ex)
+            {
+
+            }
+
+            return null;
         }
+
+
+
+
 
         [DllImport("hid.dll", SetLastError = true)]
         internal static extern Boolean HidD_FlushQueue(SafeFileHandle HidDeviceObject);
@@ -112,8 +138,6 @@ namespace ColorimeterDiagnosticApp
         [DllImport("hid.dll", SetLastError = true)]
         internal static extern Boolean HidD_GetInputReport(SafeFileHandle HidDeviceObject, Byte[] lpReportBuffer, Int32 ReportBufferLength);
 
-        [DllImport("hid.dll", SetLastError = true)]
-        internal static extern void HidD_GetHidGuid(ref System.Guid HidGuid);
 
         [DllImport("hid.dll", SetLastError = true)]
         internal static extern Boolean HidD_GetNumInputBuffers(SafeFileHandle HidDeviceObject, ref Int32 NumberBuffers);
@@ -135,6 +159,13 @@ namespace ColorimeterDiagnosticApp
 
         [DllImport("hid.dll", SetLastError = true)]
         internal static extern Int32 HidP_GetValueCaps(Int32 ReportType, Byte[] ValueCaps, ref Int32 ValueCapsLength, IntPtr PreparsedData);
+
+
+        [DllImport("hid.dll", SetLastError = true)]
+        internal static extern void HidD_GetHidGuid(ref System.Guid HidGuid);
+
+
+
 
         //  Used in error messages.
 
@@ -889,176 +920,7 @@ namespace ColorimeterDiagnosticApp
             return usageDescription;             
         }         
         
-        ///  <summary>
-        ///  Retrieves the number of Input reports the host can store.
-        ///  </summary>
-        ///  
-        ///  <param name="hidDeviceObject"> a handle to a device  </param>
-        ///  <param name="numberOfInputBuffers"> an integer to hold the returned value. </param>
-        ///  
-        ///  <returns>
-        ///  True on success, False on failure.
-        ///  </returns>
-        
-        internal Boolean GetNumberOfInputBuffers( SafeFileHandle hidDeviceObject, ref Int32 numberOfInputBuffers ) 
-        {             
-            Boolean success = false;
 
-            try
-            {
-                if (!((IsWindows98Gold())))
-                {
-                    //  ***
-                    //  API function: HidD_GetNumInputBuffers
-
-                    //  Purpose: retrieves the number of Input reports the host can store.
-                    //  Not supported by Windows 98 Gold.
-                    //  If the buffer is full and another report arrives, the host drops the 
-                    //  ldest report.
-
-                    //  Accepts: a handle to a device and an integer to hold the number of buffers. 
-
-                    //  Returns: True on success, False on failure.
-                    //  ***
-
-                    success = HidD_GetNumInputBuffers(hidDeviceObject, ref numberOfInputBuffers);
-                }
-                else
-                {
-                    //  Under Windows 98 Gold, the number of buffers is fixed at 2.
-
-                    numberOfInputBuffers = 2;
-                    success = true;
-                }
-
-                return success;
-            }
-            catch (Exception ex)
-            {
-                DisplayException( MODULE_NAME, ex ); 
-                throw ; 
-            }                       
-        } 
-                
-        ///  <summary>
-        ///  sets the number of input reports the host will store.
-        ///  Requires Windows XP or later.
-        ///  </summary>
-        ///  
-        ///  <param name="hidDeviceObject"> a handle to the device.</param>
-        ///  <param name="numberBuffers"> the requested number of input reports.  </param>
-        ///  
-        ///  <returns>
-        ///  True on success. False on failure.
-        ///  </returns>
-        
-        internal Boolean SetNumberOfInputBuffers( SafeFileHandle hidDeviceObject, Int32 numberBuffers ) 
-        {              
-            try 
-            { 
-                if ( !IsWindows98Gold() ) 
-                {                     
-                    //  ***
-                    //  API function: HidD_SetNumInputBuffers
-                    
-                    //  Purpose: Sets the number of Input reports the host can store.
-                    //  If the buffer is full and another report arrives, the host drops the 
-                    //  oldest report.
-                    
-                    //  Requires:
-                    //  A handle to a HID
-                    //  An integer to hold the number of buffers. 
-                    
-                    //  Returns: true on success, false on failure.
-                    //  ***
-                    
-                    HidD_SetNumInputBuffers( hidDeviceObject, numberBuffers );
-                    return true;                    
-                } 
-                else 
-                { 
-                    //  Not supported under Windows 98 Gold.
-                    
-                    return false; 
-                }
-                            } 
-            catch ( Exception ex ) 
-            { 
-                DisplayException( MODULE_NAME, ex ); 
-                throw ; 
-            }            
-        } 
-                
-        ///  <summary>
-        ///  Find out if the current operating system is Windows XP or later.
-        ///  (Windows XP or later is required for HidD_GetInputReport and HidD_SetInputReport.)
-        ///  </summary>
-        
-        internal Boolean IsWindowsXpOrLater() 
-        {        
-            try 
-            { 
-                OperatingSystem myEnvironment = Environment.OSVersion; 
-                
-                //  Windows XP is version 5.1.
-                
-                System.Version versionXP = new System.Version( 5, 1 );
-
-                if (myEnvironment.Version >= versionXP)                 
-                { 
-                    //Debug.Write( "The OS is Windows XP or later." ); 
-                    return true; 
-                } 
-                else 
-                { 
-                    //Debug.Write( "The OS is earlier than Windows XP." ); 
-                    return false; 
-                }                 
-            } 
-            catch ( Exception ex ) 
-            { 
-                DisplayException( MODULE_NAME, ex ); 
-                throw ; 
-            }          
-        }         
-        
-        ///  <summary>
-        ///  Find out if the current operating system is Windows 98 Gold (original version).
-        ///  Windows 98 Gold does not support the following:
-        ///  Interrupt OUT transfers (WriteFile uses control transfers and Set_Report).
-        ///  HidD_GetNumInputBuffers and HidD_SetNumInputBuffers
-        ///  (Not yet tested on a Windows 98 Gold system.)
-        ///  </summary>
-        
-        internal Boolean IsWindows98Gold() 
-        {
-            Boolean result = false;
-            try 
-            { 
-                OperatingSystem myEnvironment = Environment.OSVersion; 
-                
-                //  Windows 98 Gold is version 4.10 with a build number less than 2183.
-                
-                System.Version version98SE = new System.Version( 4, 10, 2183 );
-
-                if (myEnvironment.Version < version98SE)                
-                { 
-                    //Debug.Write( "The OS is Windows 98 Gold." );
-                    result = true; 
-                } 
-                else 
-                { 
-                    //Debug.Write( "The OS is more recent than Windows 98 Gold." );
-                    result = false; 
-                }
-                return result;
-            } 
-            catch ( Exception ex ) 
-            { 
-                DisplayException( MODULE_NAME, ex ); 
-                throw ;                 
-            }                     
-        }         
         
         ///  <summary>
         ///  Provides a central mechanism for exception handling.
