@@ -8,7 +8,7 @@ using System.Windows.Forms;
 
 namespace ColorimeterDiagnosticApp
 {
-    public partial class Form1 : Form
+    public partial class MainForm : Form
     {
         private const int WM_DEVICECHANGE = 0x219;
         private const int DBT_DEVICEARRIVAL = 0x8000;
@@ -19,50 +19,21 @@ namespace ColorimeterDiagnosticApp
 
         private const int NUMBER_OF_DEVICE_PATHNAMES = 128;
 
-        ////variables from Colorimeter Class
-        //private Boolean colorimeterDetected = false;
-        //private String colorimeterPathName;
-        ////private String hidUsage;
-        //private SafeFileHandle hidHandle;
-        //private SafeFileHandle readHandle;
-        //private SafeFileHandle writeHandle;
-        //private byte[] inputBuffer;
-        //private Boolean newInputData;
-
-        ////this could go in the colorimeter class
-        //private const short ColorimeterProductID = 0x0003;
-        //private const short ColorimeterVendorID = 0x2229;
-
-        //private string firmwareVersion;
-        //private String testFileVersion;
-        //private DeviceStates deviceState;
-
-        // Length of data string read from firmware file (in bytes) cannot exceed this value
-        //private const byte maxOutputLen = 60;
-
-        //
-        //private Hid MyHid = new Hid();
         private DeviceManagement MyDeviceManagement = new DeviceManagement();
 
-        private BackgroundWorker checkColorimeterConnectionBackgroundWorker;
-        private BackgroundWorker checkColorimeterDeviceStateBackgroundWorker;
+        private BackgroundWorker colorimeterConnectedBackgroundWorker;
 
-        private Colorimeter colorimeter;
-        private bool colorimeterDetected = false;
+        private Colorimeter colorimeter = null;
+        //private bool colorimeterDetected = false;
 
-        public Form1()
+        public MainForm()
         {
             InitializeComponent();
 
-            checkColorimeterConnectionBackgroundWorker = new BackgroundWorker();
-            checkColorimeterConnectionBackgroundWorker.DoWork += new DoWorkEventHandler(colorimeterFunction_DoWork);
-            checkColorimeterConnectionBackgroundWorker.RunWorkerCompleted += new RunWorkerCompletedEventHandler(colorimeterFunction_RunWorkerCompleted);
+            colorimeterConnectedBackgroundWorker = new BackgroundWorker();
+            colorimeterConnectedBackgroundWorker.DoWork += new DoWorkEventHandler(colorimeterFunction_DoWork);
+            colorimeterConnectedBackgroundWorker.RunWorkerCompleted += new RunWorkerCompletedEventHandler(colorimeterFunction_RunWorkerCompleted);
 
-            checkColorimeterDeviceStateBackgroundWorker = new BackgroundWorker();
-            checkColorimeterDeviceStateBackgroundWorker.DoWork += new DoWorkEventHandler(checkColorimeterDeviceStateBackgroundWorker_DoWork);
-            checkColorimeterDeviceStateBackgroundWorker.RunWorkerCompleted += new RunWorkerCompletedEventHandler(checkColorimeterDeviceStateBackgroundWorker_RunWorkerCompleted);
-
-            //colorimeter = new Colorimeter();
         }
 
         protected override void WndProc(ref Message m)
@@ -76,7 +47,7 @@ namespace ColorimeterDiagnosticApp
                     listBox1.Items.Add("A device has been attached.");
 
                     //// Look for a colorimeter if one isn't already attached
-                    if (colorimeterDetected == false)
+                    if (colorimeter == null)
                     {
 
                         Guid colorimeterGuid = Guid.Empty;
@@ -85,12 +56,12 @@ namespace ColorimeterDiagnosticApp
                         String[] devicePathNames = MyDeviceManagement.FindDevicePathsFromGuid(colorimeterGuid, NUMBER_OF_DEVICE_PATHNAMES);
 
                         var devicePath = Hid.FindDevicePath(Colorimeter.COLORIMETER_PRODUCT_ID, Colorimeter.COLORIMETER_VENDOR_ID, devicePathNames);
-                        var readHandle = FileIO.CreateFile(colorimeter.colorimeterPathName, FileIO.GENERIC_READ, FileIO.FILE_SHARE_READ | FileIO.FILE_SHARE_WRITE, IntPtr.Zero, FileIO.OPEN_EXISTING, FileIO.FILE_FLAG_OVERLAPPED, 0);
+                        var readHandle = FileIO.CreateFile(devicePath, FileIO.GENERIC_READ, FileIO.FILE_SHARE_READ | FileIO.FILE_SHARE_WRITE, IntPtr.Zero, FileIO.OPEN_EXISTING, FileIO.FILE_FLAG_OVERLAPPED, 0);
 
                         //we have found a viable colorimeter with a working path and handle
                         if (!devicePath.Equals(null) && !readHandle.IsInvalid)
                         {
-                            colorimeterDetected = true;
+                            //colorimeterDetected = true;
                             colorimeter = new Colorimeter(readHandle, devicePath);
 
                             // Start checkColorimeterDeviceStateBackgroundWorker
@@ -98,11 +69,11 @@ namespace ColorimeterDiagnosticApp
                             // is called to get the firmware and test file versions
                             var request = new ColorimeterRequest()
                             {
-                                ColorimeterRequestType = ColorimeterRequestType.DeviceState
+                                ColorimeterRequestType = ColorimeterRequestType.FirmwareVersion | ColorimeterRequestType.TestFileVersion | ColorimeterRequestType.DeviceState
                             };
-                            if (!checkColorimeterDeviceStateBackgroundWorker.IsBusy)
+                            if (!colorimeterConnectedBackgroundWorker.IsBusy)
                             {
-                                checkColorimeterDeviceStateBackgroundWorker.RunWorkerAsync(request);
+                                colorimeterConnectedBackgroundWorker.RunWorkerAsync(request);
                             }                   
 
                         }
@@ -111,31 +82,24 @@ namespace ColorimeterDiagnosticApp
                     ////  Find out if it's the device we're communicating with.
                     if (MyDeviceManagement.DeviceNameMatch(m, colorimeter.colorimeterPathName))
                     {
-                        listBox1.Items.Add("My device attached.");
+                        listBox1.Items.Add("Colorimeter attached.");
                     }
                 }
 
-                //  If WParam contains DBT_DEVICEREMOVAL, a device has been removed.
-                else if ((m.WParam.ToInt32() == DBT_DEVICEREMOVECOMPLETE))
+                //  If WParam contains DBT_DEVICEREMOVAL, a device has been removed.  We only care if the removed device is a colorimeter we are already talking to
+                else if ((m.WParam.ToInt32() == DBT_DEVICEREMOVECOMPLETE)  && colorimeter != null)
                 {
-                    listBox1.Items.Add("A device has been removed.");
 
-                    //  Find out if it's the device we're communicating with.
                     if (MyDeviceManagement.DeviceNameMatch(m, colorimeter.colorimeterPathName))
                     {
-                        listBox1.Items.Add("My device removed.");
+                        listBox1.Items.Add("Colorimeter removed.");
 
-                        //  Set MyDeviceDetected False so on the next data-transfer attempt,
-                        //  FindTheHid() will be called to look for the device 
-                        //  and get a new handle.
-                        colorimeterDetected = false;
+                        //colorimeterDetected = false;
                         colorimeter = null;
                     }
 
                 }
 
-
-                //listBox1.Items.Add($"WParam : { m.WParam }   |LParam : { m.LParam }  |Result : { m.Result }  |MHWnd : { m.HWnd }");
                 listBox1.SelectedIndex = listBox1.Items.Count - 1;
             }
 
@@ -266,16 +230,9 @@ namespace ColorimeterDiagnosticApp
         internal static extern IntPtr RegisterDeviceNotification(IntPtr hRecipient, IntPtr NotificationFilter, Int32 Flags);
 
 
-
-
-
-
-
-
-
         private void buttonClickHandler(object sender, EventArgs e)
         {
-            if (colorimeterDetected)
+            if (colorimeter != null)
             {
                 var request = new ColorimeterRequest();
 
@@ -300,9 +257,9 @@ namespace ColorimeterDiagnosticApp
                         break;
                 }
 
-                if (!checkColorimeterConnectionBackgroundWorker.IsBusy)
+                if (!colorimeterConnectedBackgroundWorker.IsBusy)
                 {
-                    checkColorimeterConnectionBackgroundWorker.RunWorkerAsync(request);
+                    colorimeterConnectedBackgroundWorker.RunWorkerAsync(request);
                 }
 
             }
@@ -372,34 +329,34 @@ namespace ColorimeterDiagnosticApp
 
         private void colorimeterFunction_DoWork(object sender, DoWorkEventArgs e)
         {
-            //here is how you get the arguments (incoming object)
+
             var incomingRequest = (ColorimeterRequest)e.Argument;
 
             ColorimeterResponse outgoingResponse = new ColorimeterResponse();
 
-            // refactor ColorimeterRequest to use ColorimeterRequestType instead of multiple Boolean variables for request type
+            // refactor ColorimeterRequest to use ColorimeterRequestType instead of multiple 
             if (incomingRequest.ColorimeterRequestType.HasFlag(ColorimeterRequestType.FirmwareVersion))
             {
-                //outgoingResponse.responseInfo.Add("you requested the firmware version");
-                outgoingResponse = colorimeter.GetColorimeterVersion();
-
-
-                //Query(QueryType.FirmwareVersion, outgoingResponse);
+                outgoingResponse.FirmwareVersion = colorimeter.GetColorimeterVersion();
             }
 
             if (incomingRequest.ColorimeterRequestType.HasFlag(ColorimeterRequestType.TestFileVersion))
             {
-                //outgoingResponse.responseInfo.Add("you requested the test file version");
-                //Query(QueryType.TestFileVersion, outgoingResponse);
-                outgoingResponse = colorimeter.GetTaylorTestFileVersion();
+
+                outgoingResponse.TestFileVersion = colorimeter.GetTaylorTestFileVersion();
                 
             }
 
+            if (incomingRequest.ColorimeterRequestType.HasFlag(ColorimeterRequestType.DeviceState))
+            {
+                //don't need to return a value Colorimeter keeps its own reference to its device state
+                colorimeter.GetDeviceState();
+            }
 
-            //hook this back up
             //if (incomingRequest.ColorimeterRequestType.HasFlag(ColorimeterRequestType.GetUserTestsFile))
             //{
-            //    outgoingResponse.responseInfo.Add("you requested the user tests file");
+            //    //outgoingResponse.responseInfo.Add("you requested the user tests file");
+
             //    ReceiveFile(SaveUserTestsPathTextBox.Text, OutCmd.SendUserTests, outgoingResponse);
             //}
             //if (incomingRequest.ColorimeterRequestType.HasFlag(ColorimeterRequestType.GetTestResults))
@@ -423,17 +380,17 @@ namespace ColorimeterDiagnosticApp
         }
         private void colorimeterFunction_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
-
+            var ds = colorimeter.DeviceState;
             var response = (ColorimeterResponse)e.Result;
 
-            if (!response.firmwareVersion.Equals(""))
+            if (!response.FirmwareVersion.Equals(""))
             {
-                textBox1.Text = response.firmwareVersion;
+                firmwareVersionTextBox.Text = response.FirmwareVersion;
             }
 
-            if (!response.testFileVersion.Equals(""))
+            if (!response.TestFileVersion.Equals(""))
             {
-                textBox2.Text = response.testFileVersion;
+                testFileVersionTextBox.Text = response.TestFileVersion;
             }
 
             foreach (string item in response.responseInfo)
@@ -444,41 +401,5 @@ namespace ColorimeterDiagnosticApp
 
         }
 
-        private void checkColorimeterDeviceStateBackgroundWorker_DoWork(object sender, DoWorkEventArgs e)
-        {
-            var incomingRequest = (ColorimeterRequest)e.Argument;
-
-            var outgoingResponse = new ColorimeterResponse();
-
-            if (incomingRequest.ColorimeterRequestType.HasFlag(ColorimeterRequestType.DeviceState))
-            {
-                outgoingResponse.responseInfo.Add("you requested the device state");
-                //Query(QueryType.DeviceState, outgoingResponse);
-            }
-
-            e.Result = outgoingResponse;
-        }
-
-        private void checkColorimeterDeviceStateBackgroundWorker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
-        {
-            var response = (ColorimeterResponse)e.Result;
-            foreach (string item in response.responseInfo)
-            {
-                listBox1.Items.Add($"{item}");
-                listBox1.SelectedIndex = listBox1.Items.Count - 1;
-            }
-
-            //if (colorimeterDetected && deviceState == DeviceStates.MainFwRunning)
-            //{
-            //    var request = new ColorimeterRequest()
-            //    {
-            //        ColorimeterRequestType = ColorimeterRequestType.FirmwareVersion | ColorimeterRequestType.TestFileVersion
-            //    };
-            //    if (!checkColorimeterConnectionBackgroundWorker.IsBusy)
-            //    {
-            //        checkColorimeterConnectionBackgroundWorker.RunWorkerAsync(request);
-            //    }
-            //}
-        }
     }
 }

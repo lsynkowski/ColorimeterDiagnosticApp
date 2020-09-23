@@ -13,20 +13,22 @@ namespace ColorimeterDiagnosticApp
 
         private const byte COLORIMETER_MAX_REPORT_OUTPUT_LENGTH = 60;
 
-        public String colorimeterPathName;
+        public string colorimeterPathName;
         public SafeFileHandle hidHandle;
         public SafeFileHandle readHandle;
         public SafeFileHandle writeHandle;
         public byte[] inputBuffer;
-        public Boolean newInputData;
+        public bool newInputData;
 
 
         private string firmwareVersion;
-        private String testFileVersion;
-        private DeviceStates deviceState;
+        private string testFileVersion;
+        private string deviceState;
 
 
         private Hid MyHid = new Hid();
+
+        public string DeviceState { get => deviceState; set => deviceState = value; }
 
 
         //Use this constructor to initialize a device
@@ -36,6 +38,9 @@ namespace ColorimeterDiagnosticApp
             //  Get handles to use in requesting Input and Output reports.
             readHandle = handle;
             colorimeterPathName = pathName;
+
+            //get the Hid Handle from the pathName
+            hidHandle = FileIO.CreateFile(colorimeterPathName, 0, FileIO.FILE_SHARE_READ | FileIO.FILE_SHARE_WRITE, IntPtr.Zero, FileIO.OPEN_EXISTING, 0, 0);
 
 
             //  Learn the capabilities of the device.
@@ -57,181 +62,145 @@ namespace ColorimeterDiagnosticApp
             MyHid.FlushQueue(readHandle);
         }
 
-
-        //private String hidUsage;
-
         //This class should operate at the level of the device itself and expose the public methods that correspond directly
         //to the Colorimeter's functionality described in the COLORIMETER COMMUNICATION INTERFACE AND FILE FORMAT SPECIFICATION
         //documentation.
         //This is directly from section 5.0 - Communication Interface, 5.1 - Overview
 
         //View the firmware version loaded on the Colorimeter
-        public ColorimeterResponse GetColorimeterVersion()
+        public string GetColorimeterVersion()
         {
-            Query(QueryType.FirmwareVersion);
-            return null;
+
+            firmwareVersion = GetSinglePacketResponse(OutCmd.SendFwVers);
+            return firmwareVersion;
+
         }
 
         //View the Taylor test file version loaded on the Colorimeter
-        public ColorimeterResponse GetTaylorTestFileVersion()
+        public string GetTaylorTestFileVersion()
         {
-            return null;
+            testFileVersion = GetSinglePacketResponse(OutCmd.SendTestFileVers);
+            return testFileVersion;
         }
         
-
         //Receive the User test file loaded on the Colorimeter
-        public ColorimeterResponse GetUserTestFile()
+        public void GetUserTestFile()
         {
-            return null;
+
         }
 
         //Receive test results from the Colorimeter
-        public ColorimeterResponse GetTestResults()
+        public void GetTestResults()
         {
-            return null;
+
         }
 
         //Start the Factory Acceptance Test(FAT)
-        public ColorimeterResponse StartFactoryAcceptanceTest()
+        public void StartFactoryAcceptanceTest()
         {
-            return null;
+
         }
 
         //Upgrade the device firmware(supported by a USB-enabled bootloader)
-        public ColorimeterResponse UpgradeDeviceFirmware()
+        public void UpgradeDeviceFirmware()
         {
-            return null;
+
         }
 
 
         //Load Taylor Test Files 
-        public ColorimeterResponse LoadTaylorTestFiles()
+        public void LoadTaylorTestFiles()
         {
-            return null;
+
         }
 
         //Load User test files
-        public ColorimeterResponse LoadUserTestFiles()
+        public void LoadUserTestFiles()
         {
-            return null;
+
         }
 
 
         //Delete test results from the Colorimeter
-        public ColorimeterResponse DeleteTestResultsFromColorimeter()
+        public void DeleteTestResultsFromColorimeter()
         {
-            return null;
+
+        }
+
+        //This method is not mentioned as a public function of the Colorimeter, but it is something that users of the form would want to know about it
+        public string GetDeviceState()
+        {
+            deviceState = GetSinglePacketResponse(OutCmd.QueryFirmwareState);
+            return deviceState;
         }
 
 
-
-        private Boolean Query(QueryType queryType)
+        private string GetSinglePacketResponse(OutCmd outCommand)
         {
-            byte[] outputBuffer = new byte[MyHid.Capabilities.OutputReportByteLength];
-            Boolean retval = false;
+            try
+            {
 
-            // Build output packet
-            outputBuffer[0] = 0;
-            // outputBuffer[1] different for each QueryType
-            switch (queryType)
-            {
-                case QueryType.FirmwareVersion:
-                    outputBuffer[1] = Convert.ToByte(OutCmd.SendFwVers);//the value of the query firmware vers
-                    break;
-                case QueryType.TestFileVersion:
-                    outputBuffer[1] = Convert.ToByte(OutCmd.SendTestFileVers);//the value of the query test file vers
-                    break;
-                case QueryType.DeviceState:
-                    outputBuffer[1] = Convert.ToByte(OutCmd.QueryFirmwareState);//the value of the query firmware state
-                    break;
-            }
-            outputBuffer[2] = 0;
-            Write(ref outputBuffer);
-            // Setup to read response
-            if (SetupRead() == true)
-            {
-                switch (queryType)
+                //build command to send buffer
+                byte[] outputBuffer = new byte[MyHid.Capabilities.OutputReportByteLength];
+                outputBuffer[0] = 0;
+                outputBuffer[1] = Convert.ToByte(outCommand);//the value of the query firmware state
+                outputBuffer[2] = 0;
+
+
+                //Write command to buffer
+                Hid.OutputReportViaInterruptTransfer outputReport = new Hid.OutputReportViaInterruptTransfer();
+                if (!outputReport.Write(outputBuffer, writeHandle))
                 {
-                    case QueryType.FirmwareVersion:
-                        retval = QueryFirmwareVersion();
-                        break;
-                    case QueryType.TestFileVersion:
-                        retval = QueryTestFileVersion();
-                        break;
-                    case QueryType.DeviceState:
-                        retval = QueryDeviceState();
-                        break;
+                    //Failure writing to the report
+                    throw new Exception();
+                }
+
+
+                //Read from the input report
+                bool deviceConnected = true;
+                bool success = false;
+
+                Hid.InputReportViaInterruptTransfer myInputReport = new Hid.InputReportViaInterruptTransfer();
+                myInputReport.Read(hidHandle, readHandle, writeHandle, ref deviceConnected, ref inputBuffer, ref success);
+
+                if (!success)
+                {
+                    //failure reading from the report
+                    throw new Exception();
+                }
+
+                //this looks unecessary
+                InputReportReceived(ref inputBuffer, success);
+                newInputData = true;
+
+                
+                if ( outCommand.Equals(OutCmd.SendFwVers) || outCommand.Equals(OutCmd.SendTestFileVers))
+                {
+                    //Both of these types of queries return the same type of packet, an encoded string
+                    return Encoding.GetEncoding("iso-8859-1").GetString(inputBuffer, 3, inputBuffer[2]);
+                }
+
+                if (outCommand.Equals(OutCmd.QueryFirmwareState))
+                {
+                    switch ((InCmd)inputBuffer[1])
+                    {
+                        case InCmd.BootloaderRunning:
+                            return "BootloaderRunning";
+
+                        case InCmd.MainFwRunning:
+                            return "MainFwRunning";
+
+                        default:
+                            return "Unknown";
+                    }
                 }
             }
-            else
+            catch (Exception ex)
             {
-                retval = false;
+
             }
 
-            return retval;
-        }
-
-        public enum QueryType
-        {
-            FirmwareVersion,
-            TestFileVersion,
-            DeviceState
-
-        }
-
-        private enum DeviceStates : byte
-        {
-            Unknown,
-            BootloaderRunning,
-            MainFwRunning,
-        };
-
-        public Boolean QueryFirmwareVersion()
-        {
-            //(expecting ACK) from response
-            if (WaitForResponse() == InCmd.FirmwareVersion)//FirmwareVersion = 10,
-            {
-                firmwareVersion = Encoding.GetEncoding("iso-8859-1").GetString(inputBuffer, 3, inputBuffer[2]);
-                //listBox1.Items.Add($"Firmware version: { firmwareVersion }");
-                //response.responseInfo.Add($"Firmware version: { firmwareVersion }");
-               // response.firmwareVersion = firmwareVersion;
-                return true;
-            }
-            return false;
-        }
-
-        public Boolean QueryTestFileVersion()
-        {
-            //(expecting ACK) from response
-            if (WaitForResponse() == InCmd.TestFileVersion)
-            {
-                testFileVersion = Encoding.GetEncoding("iso-8859-1").GetString(inputBuffer, 3, inputBuffer[2]);
-                //response.responseInfo.Add($"Test File version: { testFileVersion }");
-                //response.testFileVersion = testFileVersion;
-                return true;
-            }
-            return false;
-        }
-
-        public Boolean QueryDeviceState()
-        {
-            // Retrieve response and set device state flag appropriately
-            switch (WaitForResponse())
-            {
-                case InCmd.BootloaderRunning:
-                    deviceState = DeviceStates.BootloaderRunning;
-                    break;
-
-                case InCmd.MainFwRunning:
-                    deviceState = DeviceStates.MainFwRunning;
-                    break;
-
-                default:
-                    deviceState = DeviceStates.Unknown;
-                    break;
-            }
-            //response.responseInfo.Add($"Device State: { deviceState }");
-            return true;
+            return null;
         }
 
 
@@ -268,6 +237,8 @@ namespace ColorimeterDiagnosticApp
                 //response.responseInfo.Add("The attempt to read an Input report has failed");
             }
         }
+
+
 
         public void SendTestFile(string testFilename, OutCmd startCmd, ColorimeterResponse colorimeterResponse)
         {
@@ -409,31 +380,25 @@ namespace ColorimeterDiagnosticApp
                                 else
                                 {
                                     SendCommand(OutCmd.NAK);
-                                    //colorimeterResponse.responseInfo.Add("Checksums do not match! Checksum Error");
-                                    //MessageBox.Show("Checksums do not match!", "Checksum Error", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
                                 }
                             }
                             else
                             {
                                 SendCommand(OutCmd.NAK);
                                 done = true;
-                                //colorimeterResponse.responseInfo.Add("File transfer failed Error");
-                                //MessageBox.Show("Test file transfer failed.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+
                             }
                         }
                         else
                         {
                             done = true;
-                            //colorimeterResponse.responseInfo.Add("File transfer failed. Error");
-                            //MessageBox.Show("Test file transfer failed.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-               //colorimeterResponse.responseInfo.Add($"{ex.Message} Exception occurred!");
-                //MessageBox.Show(ex.Message, "Exception occurred!", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+
             }
 
             finally
