@@ -58,20 +58,20 @@
             this.listBox1.Size = new System.Drawing.Size(620, 212);
             this.listBox1.TabIndex = 1;
             // 
-            // textBox1
+            // firmwareVersionTextBox
             // 
-            this.firmwareVersionTextBox.Location = new System.Drawing.Point(112, 37);
+            this.firmwareVersionTextBox.Location = new System.Drawing.Point(144, 33);
             this.firmwareVersionTextBox.Margin = new System.Windows.Forms.Padding(2);
-            this.firmwareVersionTextBox.Name = "textBox1";
+            this.firmwareVersionTextBox.Name = "firmwareVersionTextBox";
             this.firmwareVersionTextBox.ReadOnly = true;
             this.firmwareVersionTextBox.Size = new System.Drawing.Size(76, 20);
             this.firmwareVersionTextBox.TabIndex = 4;
             // 
-            // textBox2
+            // testFileVersionTextBox
             // 
-            this.testFileVersionTextBox.Location = new System.Drawing.Point(112, 84);
+            this.testFileVersionTextBox.Location = new System.Drawing.Point(144, 84);
             this.testFileVersionTextBox.Margin = new System.Windows.Forms.Padding(2);
-            this.testFileVersionTextBox.Name = "textBox2";
+            this.testFileVersionTextBox.Name = "testFileVersionTextBox";
             this.testFileVersionTextBox.ReadOnly = true;
             this.testFileVersionTextBox.Size = new System.Drawing.Size(76, 20);
             this.testFileVersionTextBox.TabIndex = 5;
@@ -92,9 +92,9 @@
             this.label2.Location = new System.Drawing.Point(61, 87);
             this.label2.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(47, 13);
+            this.label2.Size = new System.Drawing.Size(79, 13);
             this.label2.TabIndex = 7;
-            this.label2.Text = "Test File";
+            this.label2.Text = "Taylor Test File";
             // 
             // SaveUserTestsFileButton
             // 
@@ -236,7 +236,7 @@
             this.UpdateFirmwareBrowseButton.UseVisualStyleBackColor = true;
             this.UpdateFirmwareBrowseButton.Click += new System.EventHandler(this.browseOpenFile_Click);
             // 
-            // Form1
+            // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
@@ -262,7 +262,7 @@
             this.Controls.Add(this.firmwareVersionTextBox);
             this.Controls.Add(this.listBox1);
             this.Margin = new System.Windows.Forms.Padding(2);
-            this.Name = "Form1";
+            this.Name = "MainForm";
             this.Text = "Form1";
             this.Load += new System.EventHandler(this.Form1_Load);
             this.ResumeLayout(false);

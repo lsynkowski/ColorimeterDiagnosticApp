@@ -8,14 +8,16 @@ namespace ColorimeterDiagnosticApp
 {
     public class ColorimeterResponse
     {
-        public List<string> responseInfo;
+        //public List<string> responseInfo;
         public string FirmwareVersion;
         public string TestFileVersion;
         public string DeviceState;
 
+        public ColorimeterActionType ColorimeterResponseActionType;
+
         public ColorimeterResponse()
         {
-            responseInfo = new List<String>();
+            //responseInfo = new List<String>();
             FirmwareVersion = "";
             TestFileVersion = "";
         }

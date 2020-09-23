@@ -44,7 +44,6 @@ namespace ColorimeterDiagnosticApp
             {
                 if ((m.WParam.ToInt32() == DBT_DEVICEARRIVAL))
                 {
-                    listBox1.Items.Add("A device has been attached.");
 
                     //// Look for a colorimeter if one isn't already attached
                     if (colorimeter == null)
@@ -69,7 +68,7 @@ namespace ColorimeterDiagnosticApp
                             // is called to get the firmware and test file versions
                             var request = new ColorimeterRequest()
                             {
-                                ColorimeterRequestType = ColorimeterRequestType.FirmwareVersion | ColorimeterRequestType.TestFileVersion | ColorimeterRequestType.DeviceState
+                                ColorimeterRequestActionType = ColorimeterActionType.FirmwareVersion | ColorimeterActionType.TestFileVersion | ColorimeterActionType.DeviceState
                             };
                             if (!colorimeterConnectedBackgroundWorker.IsBusy)
                             {
@@ -239,19 +238,19 @@ namespace ColorimeterDiagnosticApp
                 switch (((Button)sender).Name)
                 {
                     case "SaveUserTestsFileButton":
-                        request.ColorimeterRequestType = ColorimeterRequestType.GetUserTestsFile;
+                        request.ColorimeterRequestActionType = ColorimeterActionType.GetUserTestsFile;
                         break;
                     case "SaveTestResultsButton":
-                        request.ColorimeterRequestType = ColorimeterRequestType.GetTestResults;
+                        request.ColorimeterRequestActionType = ColorimeterActionType.GetTestResults;
                         break;
                     case "UpdateUserTestsFileButton":
-                        request.ColorimeterRequestType = ColorimeterRequestType.UpdateUserTestsFile;
+                        request.ColorimeterRequestActionType = ColorimeterActionType.UpdateUserTestsFile;
                         break;
                     case "UpdateTaylorTestsFileButton":
-                        request.ColorimeterRequestType = ColorimeterRequestType.UpdateTaylorTestsFile;
+                        request.ColorimeterRequestActionType = ColorimeterActionType.UpdateTaylorTestsFile;
                         break;
                     case "UpdateFirmwareButton":
-                        request.ColorimeterRequestType = ColorimeterRequestType.UpdateFirmware;
+                        request.ColorimeterRequestActionType = ColorimeterActionType.UpdateFirmware;
                         break;
                     default:
                         break;
@@ -334,45 +333,49 @@ namespace ColorimeterDiagnosticApp
 
             ColorimeterResponse outgoingResponse = new ColorimeterResponse();
 
-            // refactor ColorimeterRequest to use ColorimeterRequestType instead of multiple 
-            if (incomingRequest.ColorimeterRequestType.HasFlag(ColorimeterRequestType.FirmwareVersion))
+            if (incomingRequest.ColorimeterRequestActionType.HasFlag(ColorimeterActionType.FirmwareVersion))
             {
                 outgoingResponse.FirmwareVersion = colorimeter.GetColorimeterVersion();
+                outgoingResponse.ColorimeterResponseActionType |= ColorimeterActionType.FirmwareVersion;
             }
 
-            if (incomingRequest.ColorimeterRequestType.HasFlag(ColorimeterRequestType.TestFileVersion))
+            if (incomingRequest.ColorimeterRequestActionType.HasFlag(ColorimeterActionType.TestFileVersion))
             {
 
                 outgoingResponse.TestFileVersion = colorimeter.GetTaylorTestFileVersion();
+                outgoingResponse.ColorimeterResponseActionType |= ColorimeterActionType.TestFileVersion;
                 
             }
 
-            if (incomingRequest.ColorimeterRequestType.HasFlag(ColorimeterRequestType.DeviceState))
+            if (incomingRequest.ColorimeterRequestActionType.HasFlag(ColorimeterActionType.DeviceState))
             {
                 //don't need to return a value Colorimeter keeps its own reference to its device state
                 colorimeter.GetDeviceState();
+                outgoingResponse.ColorimeterResponseActionType |= ColorimeterActionType.DeviceState;
             }
 
-            //if (incomingRequest.ColorimeterRequestType.HasFlag(ColorimeterRequestType.GetUserTestsFile))
-            //{
-            //    //outgoingResponse.responseInfo.Add("you requested the user tests file");
+            if (incomingRequest.ColorimeterRequestActionType.HasFlag(ColorimeterActionType.GetUserTestsFile))
+            {
+                colorimeter.GetUserTestFile(SaveUserTestsPathTextBox.Text);
+                outgoingResponse.ColorimeterResponseActionType |= ColorimeterActionType.GetUserTestsFile;
+            }
 
-            //    ReceiveFile(SaveUserTestsPathTextBox.Text, OutCmd.SendUserTests, outgoingResponse);
-            //}
-            //if (incomingRequest.ColorimeterRequestType.HasFlag(ColorimeterRequestType.GetTestResults))
-            //{
-            //    outgoingResponse.responseInfo.Add("you requested test results");
-            //    ReceiveFile(SaveTestResultsPathTextBox.Text, OutCmd.SendTestResults, outgoingResponse);
-            //}
-            //if (incomingRequest.ColorimeterRequestType.HasFlag(ColorimeterRequestType.UpdateUserTestsFile))
-            //{
-            //    if(File.Exists(UpdateUserTestsPathTextBox.Text))
-            //    {
-            //        outgoingResponse.responseInfo.Add("you requested update user tests file");
-            //        SendTestFile(UpdateUserTestsPathTextBox.Text, OutCmd.UserTestStart, outgoingResponse);
-            //    }
-            //}
 
+            if (incomingRequest.ColorimeterRequestActionType.HasFlag(ColorimeterActionType.GetTestResults))
+            {
+                colorimeter.GetTestResults(SaveTestResultsPathTextBox.Text);
+                outgoingResponse.ColorimeterResponseActionType |= ColorimeterActionType.GetTestResults;
+            }
+
+
+            if (incomingRequest.ColorimeterRequestActionType.HasFlag(ColorimeterActionType.UpdateUserTestsFile))
+            {
+                if (File.Exists(UpdateUserTestsPathTextBox.Text))
+                {
+                    colorimeter.LoadTaylorTestFiles(UpdateUserTestsPathTextBox.Text);
+                    outgoingResponse.ColorimeterResponseActionType |= ColorimeterActionType.GetTestResults;
+                }
+            }
 
             //assign that variable to e.Result
             e.Result = outgoingResponse;
@@ -380,23 +383,16 @@ namespace ColorimeterDiagnosticApp
         }
         private void colorimeterFunction_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
-            var ds = colorimeter.DeviceState;
             var response = (ColorimeterResponse)e.Result;
 
-            if (!response.FirmwareVersion.Equals(""))
+            if (response.ColorimeterResponseActionType.HasFlag(ColorimeterActionType.FirmwareVersion))
             {
                 firmwareVersionTextBox.Text = response.FirmwareVersion;
             }
 
-            if (!response.TestFileVersion.Equals(""))
+            if (response.ColorimeterResponseActionType.HasFlag(ColorimeterActionType.TestFileVersion))
             {
                 testFileVersionTextBox.Text = response.TestFileVersion;
-            }
-
-            foreach (string item in response.responseInfo)
-            {
-                listBox1.Items.Add($"{item}");
-                listBox1.SelectedIndex = listBox1.Items.Count - 1;
             }
 
         }

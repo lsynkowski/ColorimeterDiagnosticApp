@@ -1,5 +1,6 @@
 ﻿using Microsoft.Win32.SafeHandles;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -23,12 +24,9 @@ namespace ColorimeterDiagnosticApp
 
         private string firmwareVersion;
         private string testFileVersion;
-        private string deviceState;
-
-
         private Hid MyHid = new Hid();
 
-        public string DeviceState { get => deviceState; set => deviceState = value; }
+        public string DeviceState { get; set; }
 
 
         //Use this constructor to initialize a device
@@ -48,8 +46,6 @@ namespace ColorimeterDiagnosticApp
             MyHid.DeviceAttributes.Size = Marshal.SizeOf(MyHid.DeviceAttributes);
 
             Hid.HidD_GetAttributes(hidHandle, ref MyHid.DeviceAttributes);
-            //  Find out if the device is a system mouse or keyboard.
-            //hidUsage = MyHid.GetHidUsage(MyHid.Capabilities);
 
 
             // Initialize input report buffer
@@ -76,23 +72,36 @@ namespace ColorimeterDiagnosticApp
 
         }
 
-        //View the Taylor test file version loaded on the Colorimeter
+        //Get the Taylor test file version loaded on the Colorimeter
         public string GetTaylorTestFileVersion()
         {
             testFileVersion = GetSinglePacketResponse(OutCmd.SendTestFileVers);
             return testFileVersion;
         }
-        
-        //Receive the User test file loaded on the Colorimeter
-        public void GetUserTestFile()
+
+        //Get the User test file loaded on the Colorimeter
+        public void GetUserTestFile(string saveFilePath)
         {
+            // If the output file exists, delete it
+            if (File.Exists(saveFilePath))
+            {
+                File.Delete(saveFilePath); 
+            }
+
+            ReceiveFile(saveFilePath, OutCmd.SendUserTests);
 
         }
 
         //Receive test results from the Colorimeter
-        public void GetTestResults()
+        public void GetTestResults(string saveFilePath)
         {
+            // If the output file exists, delete it
+            if (File.Exists(saveFilePath))
+            {
+                File.Delete(saveFilePath);
+            }
 
+            ReceiveFile(saveFilePath, OutCmd.SendTestResults);
         }
 
         //Start the Factory Acceptance Test(FAT)
@@ -109,7 +118,7 @@ namespace ColorimeterDiagnosticApp
 
 
         //Load Taylor Test Files 
-        public void LoadTaylorTestFiles()
+        public void LoadTaylorTestFiles(string taylorTestFilePath)
         {
 
         }
@@ -130,17 +139,17 @@ namespace ColorimeterDiagnosticApp
         //This method is not mentioned as a public function of the Colorimeter, but it is something that users of the form would want to know about it
         public string GetDeviceState()
         {
-            deviceState = GetSinglePacketResponse(OutCmd.QueryFirmwareState);
-            return deviceState;
+            DeviceState = GetSinglePacketResponse(OutCmd.QueryFirmwareState);
+            return DeviceState;
         }
 
-
+        //This method is used for the cases where a single response packet will be enough to contain the results, and we will not have to iterate through a large amount of data
         private string GetSinglePacketResponse(OutCmd outCommand)
         {
             try
             {
 
-                //build command to send buffer
+                ////build command to send buffer
                 byte[] outputBuffer = new byte[MyHid.Capabilities.OutputReportByteLength];
                 outputBuffer[0] = 0;
                 outputBuffer[1] = Convert.ToByte(outCommand);//the value of the query firmware state
@@ -169,12 +178,12 @@ namespace ColorimeterDiagnosticApp
                     throw new Exception();
                 }
 
-                //this looks unecessary
+
                 InputReportReceived(ref inputBuffer, success);
                 newInputData = true;
 
-                
-                if ( outCommand.Equals(OutCmd.SendFwVers) || outCommand.Equals(OutCmd.SendTestFileVers))
+
+                if (outCommand.Equals(OutCmd.SendFwVers) || outCommand.Equals(OutCmd.SendTestFileVers))
                 {
                     //Both of these types of queries return the same type of packet, an encoded string
                     return Encoding.GetEncoding("iso-8859-1").GetString(inputBuffer, 3, inputBuffer[2]);
@@ -218,7 +227,7 @@ namespace ColorimeterDiagnosticApp
             return (InCmd)inputBuffer[1];
         }
 
-        private void InputReportReceived(ref Byte[] inputReportBuffer, Boolean success)
+        private void InputReportReceived(ref Byte[] inputReportBuffer, bool success)
         {
             Int32 count = 0;
 
@@ -240,7 +249,7 @@ namespace ColorimeterDiagnosticApp
 
 
 
-        public void SendTestFile(string testFilename, OutCmd startCmd, ColorimeterResponse colorimeterResponse)
+        public void SendTaylorTestFile(string testFilename)
         {
             Boolean done;
             int i, j, readLen;
@@ -251,7 +260,7 @@ namespace ColorimeterDiagnosticApp
             try
             {
                 // Alert colorimeter that we are going to start sending test data
-                SendCommand(startCmd);
+                SendCommand(OutCmd.TaylorTestStart);
 
                 // Wait for ACK
                 //this.SetupRead();
@@ -277,7 +286,7 @@ namespace ColorimeterDiagnosticApp
                         outputBuffer[0] = 0;        // Report number
 
                         // If readLen is greater than 0, data was read from file
-                        colorimeterResponse.responseInfo.Add("SendTestFile(): read " + readLen + " bytes");
+                        //colorimeterResponse.responseInfo.Add("SendTestFile(): read " + readLen + " bytes");
                         if (readLen > 0)
                         {
                             outputBuffer[1] = Convert.ToByte(OutCmd.TestData);
@@ -296,7 +305,7 @@ namespace ColorimeterDiagnosticApp
                         // Copy test data to output buffer 
                         for (i = 3, j = 0; j < readLen; i++, j++)
                         {
-                            colorimeterResponse.responseInfo.Add("SendTestFile(): data byte " + j + " is " + String.Format(@"\x{0:x2}", Convert.ToByte(testData[j])));
+                            //colorimeterResponse.responseInfo.Add("SendTestFile(): data byte " + j + " is " + String.Format(@"\x{0:x2}", Convert.ToByte(testData[j])));
                             outputBuffer[i] = Convert.ToByte(testData[j]);
                         }
 
@@ -320,41 +329,38 @@ namespace ColorimeterDiagnosticApp
             }
             catch
             {
-                colorimeterResponse.responseInfo.Add("Exception thrown in colorimeter.SendTestFile():");
+                //colorimeterResponse.responseInfo.Add("Exception thrown in colorimeter.SendTestFile():");
                 testFileReader.Close();
             }
         }
 
         public void ReceiveFile(string fileName, OutCmd outCmd)
         {
-            bool done;
-            byte checksum = 0;
             BinaryWriter outputFileWriter = null;
-
             try
             {
-                // If the output file exists, delete it
-                if (File.Exists(fileName))
-                {
-                    File.Delete(fileName);
-                }
+
                 // Open the output file and create an BinaryWriter object so we can write to it
                 outputFileWriter = new BinaryWriter(File.Open(fileName, FileMode.OpenOrCreate, FileAccess.Write));
 
                 // Request the file from the colorimeter
-                SendCommand(outCmd);
-                // Wait for ACK
-                SetupRead();
+                WriteCommandToOutputBuffer(outCmd);
 
-                if (WaitForResponse() == InCmd.ACK)
+                // Wait for ACK
+                newInputData = ReadInputBuffer();
+
+                if ((InCmd)inputBuffer[1] == InCmd.ACK)
                 {
-                    // Loop, receiving test data until colorimeter tells us we're done
-                    done = false;
+                    byte checksum = 0;
+                    bool done = false;
                     while (!done)
                     {
                         // ACK received, now wait for test data
-                        SetupRead();
-                        if (WaitForInputReport())
+
+                        newInputData = false;
+                        newInputData = ReadInputBuffer();
+
+                        if (newInputData)
                         {
                             // Verify that the data we received is correct given outCmd
                             if ((outCmd == OutCmd.SendUserTests && inputBuffer[1] == (byte)InCmd.TestData) ||
@@ -368,31 +374,29 @@ namespace ColorimeterDiagnosticApp
 
                                 // If input report received successfully, write data
                                 outputFileWriter.Write(inputBuffer, 3, inputBuffer[2]);
-                                SendCommand(OutCmd.ACK);
+
+                                WriteCommandToOutputBuffer(OutCmd.ACK);
                             }
                             else if (inputBuffer[1] == (byte)InCmd.DataSendComplete)
                             {
                                 done = true;
                                 if (checksum == inputBuffer[3])
                                 {
-                                    SendCommand(OutCmd.ACK);
+                                    WriteCommandToOutputBuffer(OutCmd.ACK);
                                 }
                                 else
                                 {
-                                    SendCommand(OutCmd.NAK);
+                                    WriteCommandToOutputBuffer(OutCmd.NAK);
                                 }
                             }
                             else
                             {
-                                SendCommand(OutCmd.NAK);
+                                WriteCommandToOutputBuffer(OutCmd.NAK);
                                 done = true;
 
                             }
                         }
-                        else
-                        {
-                            done = true;
-                        }
+
                     }
                 }
             }
@@ -407,6 +411,10 @@ namespace ColorimeterDiagnosticApp
                     outputFileWriter.Close();
             }
         }
+
+
+
+
 
         private void SendCommand(OutCmd command)
         {
@@ -423,11 +431,18 @@ namespace ColorimeterDiagnosticApp
             }
         }
 
-        private bool WaitForInputReport()
+        private bool WriteCommandToOutputBuffer(OutCmd command)
         {
-            while (!newInputData) ;
+            byte[] outputBuffer = new byte[MyHid.Capabilities.OutputReportByteLength];
 
-            return true;
+            outputBuffer[0] = 0;
+            outputBuffer[1] = Convert.ToByte(command);
+            outputBuffer[2] = 0;
+            Write(ref outputBuffer);
+
+            Hid.OutputReportViaInterruptTransfer outputReport = new Hid.OutputReportViaInterruptTransfer();
+            return outputReport.Write(outputBuffer, writeHandle);
+
         }
 
         private enum InCmd : byte
@@ -480,9 +495,9 @@ namespace ColorimeterDiagnosticApp
             DeleteTestResults = 40,
         };
 
-        private Boolean Write(ref byte[] outputBuffer)
+        private bool Write(ref byte[] outputBuffer)
         {
-            Boolean success = false;
+            bool success = false;
 
             try
             {
@@ -564,6 +579,43 @@ namespace ColorimeterDiagnosticApp
                 //response.responseInfo.Add($"Colorimeter.SetupRead() {ex}");
                 throw;
             }
+        }
+
+        // replaces setupread
+        public bool ReadInputBuffer()
+        {
+            var ret = false;
+
+            Hid.InputReportViaInterruptTransfer myInputReport = new Hid.InputReportViaInterruptTransfer();
+
+            //i don't want this sub function to be able to disconnect the colorimeter
+            var myColorimeterDetected = true;
+
+
+            myInputReport.Read(hidHandle, readHandle, writeHandle, ref myColorimeterDetected, ref inputBuffer, ref ret);
+
+            for (int count = 0; count < inputBuffer.Length; count++)
+            {
+                //  Copy input data to buffer
+                inputBuffer[count] = inputBuffer[count];
+            }
+
+            return ret;
+        }
+
+
+        //replaces InputReportReceived
+        public bool UpdateInputBuffer(ref Byte[] inputReportBuffer)
+        {
+
+            for (int count = 0; count < inputReportBuffer.Length; count++)
+            {
+                //  Copy input data to buffer
+                inputBuffer[count] = inputReportBuffer[count];
+            }
+
+            return true;
+
         }
 
     }

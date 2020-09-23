@@ -9,18 +9,12 @@ namespace ColorimeterDiagnosticApp
     public class ColorimeterRequest
     {
 
-        public ColorimeterRequestType ColorimeterRequestType;
+        public ColorimeterActionType ColorimeterRequestActionType;
     
-
-        public ColorimeterRequest()
-        {
-
-        }
-
     }
 
     [Flags]
-    public enum ColorimeterRequestType
+    public enum ColorimeterActionType
     {
         NotDefined = 0,
         Transfer = 1,
