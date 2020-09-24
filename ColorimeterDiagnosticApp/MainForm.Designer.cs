@@ -1,6 +1,6 @@
 ﻿namespace ColorimeterDiagnosticApp
 {
-    partial class Form1
+    partial class MainForm
     {
         /// <summary>
         /// Required designer variable.
@@ -29,8 +29,8 @@
         private void InitializeComponent()
         {
             this.listBox1 = new System.Windows.Forms.ListBox();
-            this.textBox1 = new System.Windows.Forms.TextBox();
-            this.textBox2 = new System.Windows.Forms.TextBox();
+            this.firmwareVersionTextBox = new System.Windows.Forms.TextBox();
+            this.testFileVersionTextBox = new System.Windows.Forms.TextBox();
             this.label1 = new System.Windows.Forms.Label();
             this.label2 = new System.Windows.Forms.Label();
             this.SaveUserTestsFileButton = new System.Windows.Forms.Button();
@@ -58,23 +58,23 @@
             this.listBox1.Size = new System.Drawing.Size(620, 212);
             this.listBox1.TabIndex = 1;
             // 
-            // textBox1
+            // firmwareVersionTextBox
             // 
-            this.textBox1.Location = new System.Drawing.Point(112, 37);
-            this.textBox1.Margin = new System.Windows.Forms.Padding(2);
-            this.textBox1.Name = "textBox1";
-            this.textBox1.ReadOnly = true;
-            this.textBox1.Size = new System.Drawing.Size(76, 20);
-            this.textBox1.TabIndex = 4;
+            this.firmwareVersionTextBox.Location = new System.Drawing.Point(144, 33);
+            this.firmwareVersionTextBox.Margin = new System.Windows.Forms.Padding(2);
+            this.firmwareVersionTextBox.Name = "firmwareVersionTextBox";
+            this.firmwareVersionTextBox.ReadOnly = true;
+            this.firmwareVersionTextBox.Size = new System.Drawing.Size(76, 20);
+            this.firmwareVersionTextBox.TabIndex = 4;
             // 
-            // textBox2
+            // testFileVersionTextBox
             // 
-            this.textBox2.Location = new System.Drawing.Point(112, 84);
-            this.textBox2.Margin = new System.Windows.Forms.Padding(2);
-            this.textBox2.Name = "textBox2";
-            this.textBox2.ReadOnly = true;
-            this.textBox2.Size = new System.Drawing.Size(76, 20);
-            this.textBox2.TabIndex = 5;
+            this.testFileVersionTextBox.Location = new System.Drawing.Point(144, 84);
+            this.testFileVersionTextBox.Margin = new System.Windows.Forms.Padding(2);
+            this.testFileVersionTextBox.Name = "testFileVersionTextBox";
+            this.testFileVersionTextBox.ReadOnly = true;
+            this.testFileVersionTextBox.Size = new System.Drawing.Size(76, 20);
+            this.testFileVersionTextBox.TabIndex = 5;
             // 
             // label1
             // 
@@ -92,9 +92,9 @@
             this.label2.Location = new System.Drawing.Point(61, 87);
             this.label2.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(47, 13);
+            this.label2.Size = new System.Drawing.Size(79, 13);
             this.label2.TabIndex = 7;
-            this.label2.Text = "Test File";
+            this.label2.Text = "Taylor Test File";
             // 
             // SaveUserTestsFileButton
             // 
@@ -236,7 +236,7 @@
             this.UpdateFirmwareBrowseButton.UseVisualStyleBackColor = true;
             this.UpdateFirmwareBrowseButton.Click += new System.EventHandler(this.browseOpenFile_Click);
             // 
-            // Form1
+            // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
@@ -258,11 +258,11 @@
             this.Controls.Add(this.SaveUserTestsFileButton);
             this.Controls.Add(this.label2);
             this.Controls.Add(this.label1);
-            this.Controls.Add(this.textBox2);
-            this.Controls.Add(this.textBox1);
+            this.Controls.Add(this.testFileVersionTextBox);
+            this.Controls.Add(this.firmwareVersionTextBox);
             this.Controls.Add(this.listBox1);
             this.Margin = new System.Windows.Forms.Padding(2);
-            this.Name = "Form1";
+            this.Name = "MainForm";
             this.Text = "Form1";
             this.Load += new System.EventHandler(this.Form1_Load);
             this.ResumeLayout(false);
@@ -272,8 +272,8 @@
 
         #endregion
         private System.Windows.Forms.ListBox listBox1;
-        private System.Windows.Forms.TextBox textBox1;
-        private System.Windows.Forms.TextBox textBox2;
+        private System.Windows.Forms.TextBox firmwareVersionTextBox;
+        private System.Windows.Forms.TextBox testFileVersionTextBox;
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.Button SaveUserTestsFileButton;
